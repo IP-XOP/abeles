@@ -1,0 +1,7 @@
+Abeles.xop is a program that calculate reflectivity values in IGOR Pro: written by Andrew Nelson
+
+Copyright (C) 2006 Andrew Nelson and Australian Nuclear Science and Technology Organisation
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.   Whilst is has been tested, it is the users responsibility to check for potential inaccuracies in the function calculation.  If you use this plugin to analyse data that is then published then we request that you cite the original Motofit paper.
+
+Nelson, A. (2006). "Co-refinement of multiple contrast neutron / X-ray reflectivity data using MOTOFIT." Journal of Applied Crystallography 39: 273-276.
