@@ -10,6 +10,7 @@
 #include "RefCalculator.h"
 #include "MyComplex.h"
 #include "Abeles.h"
+
 #ifdef _MACINTOSH_
 	#include <pthread.h>
 #endif
@@ -41,16 +42,16 @@ void *AbelesImagThreadWorker(void *arg){
 }
 
 int 
-AbelesCalcAll(double *coefP, double *yP, double *xP,long npoints, int Vmullayers, int Vmulappend, int Vmulrep){
+AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, int Vmullayers, int Vmulappend, int Vmulrep){
 	int err = 0;
 	int j;
 	
 	int ii=0,jj=0,kk=0;
 
 	double scale,bkg,subrough;
-	double num=0,den=0, answer=0,qq;
+	double num=0, den=0, answer=0, qq;
 	double anum,anum2;
-	MyComplex temp,SLD,beta,rj;
+	MyComplex temp, SLD, beta, rj;
 	double numtemp=0;
 	int offset=0;
 	MyComplex  MRtotal[2][2];
@@ -85,7 +86,7 @@ AbelesCalcAll(double *coefP, double *yP, double *xP,long npoints, int Vmullayers
 	offset = 4 * nlayers + 6;
 
 	//fillout all the SLD's for all the layers
-	for(ii=1; ii<nlayers+1;ii+=1){
+	for(ii = 1 ; ii < nlayers+1 ; ii += 1){
 		numtemp = 1.e-6 * ((100. - coefP[4*ii+4])/100.) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1.e-6)/100.;		//sld of the layer
 		*(SLDmatrix+ii) = 4*PI*(numtemp  - (coefP[2]*1e-6));
 	}
@@ -109,17 +110,20 @@ AbelesCalcAll(double *coefP, double *yP, double *xP,long npoints, int Vmullayers
 			}
 	}
 	
-	for (j = 0; j < npoints; j++) {
+	for (j = 0; j < npoints ; j+=1) {
 		//intialise the matrices
-		memset(MRtotal,0,sizeof(MRtotal));
-		MRtotal[0][0] = oneC ; MRtotal[1][1] = oneC;
+		memset(MRtotal, 0, sizeof(MRtotal));
+		MRtotal[0][0].re = 1.;
+		MRtotal[0][0].im = 0.;
+		MRtotal[1][1].re = 1.;
+		MRtotal[1][1].im = 0.;
+		
 
 		qq = xP[j]*xP[j]/4;
-		qq2=MyComplex(qq,0);
-
-		for(ii=0; ii<nlayers+2 ; ii++){			//work out the wavevector in each of the layers
-			pj[ii] = (*(SLDmatrix+ii)>qq) ? compsqrt(qq2-MyComplex(*(SLDmatrix+ii),0)): MyComplex(sqrt(qq-*(SLDmatrix+ii)),0);
-		}
+		qq2.re = qq;
+		qq2.im = 0;
+		for(ii = 0; ii < nlayers+2 ; ii++)			//work out the wavevector in each of the layers
+			pj[ii] = (*(SLDmatrix+ii) > qq) ? MyComplex(0, sqrt(fabs(qq - *(SLDmatrix+ii)))) : MyComplex(sqrt(qq - *(SLDmatrix+ii)), 0);
 		
 		//workout the wavevector in the toplayer of the multilayer, if it exists.
 		if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >=0){
@@ -134,41 +138,40 @@ AbelesCalcAll(double *coefP, double *yP, double *xP,long npoints, int Vmullayers
 			//this looks more complicated than it really is.
 			//the reason it looks so convoluted is because if there is no complex part of the wavevector,
 			//then it is faster to do the calc with real arithmetic then put it into a complex number.
-			if(Vmullayers>0 && ii==Vmulappend && Vmulrep>0 ){
-				rj=fres(pj[ii],pj_mul[0],coefP[offset+3]);
-			} else {
-				if((pj[ii]).im == 0 && (pj[ii+1]).im==0){
+			if(Vmullayers > 0 && ii == Vmulappend && Vmulrep > 0 )
+				rj = fres(pj[ii], pj_mul[0], coefP[offset+3]);
+			else {
+				if((pj[ii]).im == 0 && (pj[ii+1]).im ==0){
 					anum = (pj[ii]).re;
 					anum2 = (pj[ii+1]).re;
-					rj = (ii==nlayers) ?
-					MyComplex(((anum-anum2)/(anum+anum2))*exp(anum*anum2*-2*subrough*subrough),0)
+					rj.re = (ii==nlayers) ? 
+					((anum-anum2) / (anum+anum2)) * exp(anum*anum2*-2*subrough*subrough)
 					:
-					MyComplex(((anum-anum2)/(anum+anum2))*exp(anum*anum2*-2*coefP[4*(ii+1)+5]*coefP[4*(ii+1)+5]),0);
+					((anum-anum2) / (anum+anum2)) * exp(anum*anum2*-2*coefP[4*(ii+1)+5]*coefP[4*(ii+1)+5]);
+					rj.im = 0.;
 				} else {
 					rj = (ii == nlayers) ?
-						((pj[ii]-pj[ii+1])/(pj[ii]+pj[ii+1]))*compexp(pj[ii]*pj[ii+1]*MyComplex(-2*subrough*subrough,0))
+						((pj[ii]-pj[ii+1])/(pj[ii]+pj[ii+1]))*compexp(pj[ii]*pj[ii+1]*-2*subrough*subrough)
 						:
-						((pj[ii]-pj[ii+1])/(pj[ii]+pj[ii+1]))*compexp(pj[ii]*pj[ii+1]*MyComplex(-2*coefP[4*(ii+1)+5]*coefP[4*(ii+1)+5],0));	
+						((pj[ii]-pj[ii+1])/(pj[ii]+pj[ii+1]))*compexp(pj[ii]*pj[ii+1]*-2*coefP[4*(ii+1)+5]*coefP[4*(ii+1)+5]);	
 				};
 			}
 
 			//work out the beta for the (non-multi)layer
-			beta = (ii==0)? oneC : compexp(pj[ii] * MyComplex(0,fabs(coefP[4*ii+2])));
+			temp.re = 0;
+			temp.im = fabs(coefP[4*ii+2]);
+			beta = (ii==0)? oneC : compexp(pj[ii] * temp);
 
 			//this is the characteristic matrix of a layer
 			MI[0][0]=beta;
 			MI[0][1]=rj*beta;
 			MI[1][1]=oneC/beta;
 			MI[1][0]=rj*MI[1][1];
-
+			
 			memcpy(temp2, MRtotal, sizeof(MRtotal));
-//			temp2[0][0] = MRtotal[0][0];
-//			temp2[0][1] = MRtotal[0][1];
-//			temp2[1][0] = MRtotal[1][0];
-//			temp2[1][1] = MRtotal[1][1];
 						
 			//multiply MR,MI to get the updated total matrix.			
-			matmul(temp2,MI,MRtotal);
+			matmul(temp2, MI, MRtotal);
 
 		if(Vmullayers > 0 && ii == Vmulappend && Vmulrep > 0){
 		//workout the wavevectors in each of the layers
@@ -195,10 +198,6 @@ AbelesCalcAll(double *coefP, double *yP, double *xP,long npoints, int Vmullayers
 				MI[1][0]=rj*MI[1][1];
 
 				memcpy(temp2, subtotal, sizeof(subtotal));
-//				temp2[0][0] = subtotal[0][0];
-//				temp2[0][1] = subtotal[0][1];
-//				temp2[1][0] = subtotal[1][0];
-//				temp2[1][1] = subtotal[1][1];
 
 				matmul(temp2,MI,subtotal);
 			};
@@ -247,7 +246,7 @@ AbelesCalcAll(double *coefP, double *yP, double *xP,long npoints, int Vmullayers
 		
 		den=compnorm(MRtotal[0][0]);
 		num=compnorm(MRtotal[1][0]);
-		answer=((num/den)*scale)+bkg;
+		answer=((num / den) * scale) + bkg;
 
 		*yP++ = answer;
 	}

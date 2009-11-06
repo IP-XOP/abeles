@@ -1,13 +1,14 @@
-/*	Abeles.c
- A simplified project designed to act as a template for your curve fitting function.
- The fitting function is a simple polynomial. It works but is of no practical use.
- */
+/*	Abeles.cpp
+calculates specular reflectivity as a function of Q momentum transfer.
+*/
 
 #include "XOPStandardHeaders.h"			// Include ANSI headers, Mac headers, IgorXOP.h, XOP.h and XOPSupport.h
 #include "Abeles.h"
 #include <math.h>
 #include <exception>
 #include "RefCalculator.h"
+
+//we can do the calculation multithreaded, it should be faster.
 #ifdef _MACINTOSH_
 #include <pthread.h>
 #endif
@@ -17,21 +18,22 @@
 #include "semaphore.h"
 #endif
 
-/*	Abeles calculates reflectivity given a model description.
- 
- Warning:
- The call to WaveData() below returns a pointer to the middle
- of an unlocked Macintosh handle. In the unlikely event that your
- calculations could cause memory to move, you should copy the coefficient
- values to local variables or an array before such operations.
- */
 #include "XOPStructureAlignmentTwoByte.h"	// All structures passed to Igor are two-byte aligned.
 
+/*
+this definition is for a fit function that takes a model wave and a Q value (passed as a variable) and returns
+a single reflectivity value
+*/
 typedef struct FitParams {
 	double x;				// Independent variable.
 	waveHndl waveHandle;	// Coefficient wave.
 	double result;
 } FitParams, *FitParamsPtr;
+
+/*
+ this definition is for a fit function that takes a model wave and a Q wave (passed as a variable) and returns 
+ reflectivity values, as a wave.
+ */
 
 typedef struct FitParamsAll {
 	waveHndl XWaveHandle;	// X wave (input).
@@ -40,69 +42,105 @@ typedef struct FitParamsAll {
 	DOUBLE result;			// not actually used.
 }FitParamsAll, *FitParamsAllPtr;
 
+/*
+ this definition is for a fit function that takes a model wave and a Q wave (passed as a variable) and 
+ resolution in Q, dQ and returns 
+ reflectivity values, as a wave.
+*/
+
 typedef struct SmearedParamsAll {
-	waveHndl dXWaveHandle;	// X wave (input).	
-	waveHndl XWaveHandle;	// X wave (input).
-	waveHndl YWaveHandle;	// Y wave (output).
+	waveHndl dXWaveHandle;	// dQ wave (input).	
+	waveHndl XWaveHandle;	// Q wave (input).
+	waveHndl YWaveHandle;	// R wave (output).
 	waveHndl CoefHandle;	// Coefficient wave.
 	DOUBLE result;			// not actually used.
 }SmearedParamsAll, *SmearedParamsAllPtr;
 
-
 #include "XOPStructureAlignmentReset.h"
 
 
-
-//NUMBER OF CPUS;
+/*
+ because we are going to do the calculation in a threaded fashion we need to know the number of CPU's.
+ This is stored in a global so we don't need to find it out every time we call the function.
+ */
 int NUM_CPUS=1;
 
+/*
+ An all at once fit function.  You send all the Qvalues and a model wave, and get all the reflectivity values back.
+ */
 int
 AbelesAll(FitParamsAllPtr p){
+	//number of coefficients, number of Q points
 	long ncoefs,npoints;
+	
+	//temporary places for calculation
 	double realVal,imagVal;
-	long nlayers, Vmullayers=-1, Vappendlayer=0, Vmulrep=0, err=0, ii;
+	
+	//how many layers you have
+	long nlayers;
+	
+	//how many layers in multilayer (if you have one)
+	long Vmullayers=-1;
+	//where in the normal model the multilayer gets appended to
+	long Vappendlayer=0;
+	//how many times the multilayer repeats
+	long Vmulrep=0;
+	
+	//the return code of the function
+	long err=0;
+	//a variable for iterating for loops
+	long ii;
+	
+	//we will extract values from the supplied waves and store them as double arrays
+	//these pointers refer to the values extracted.
 	double *coefP = NULL;
 	double *xP = NULL;
 	double *yP = NULL;
 	
 	extern int NUM_CPUS;
-	
-	pthread_t *threads;
-	refCalcParm *arg;
+
+	//variables for the threadwise calculation of the reflectivity
+	pthread_t *threads = NULL;
+	refCalcParm *arg = NULL;
 	long pointsEachThread = 0;
 	long pointsRemaining = 0;
 	long pointsConsumed = 0;
 	
-	if (p->CoefHandle == NULL || p->YWaveHandle == NULL || p->XWaveHandle == NULL ) 
-	{
+	//have to check that all the supplied wave references exist
+	if (p->CoefHandle == NULL ||
+			p->YWaveHandle == NULL ||
+				p->XWaveHandle == NULL ){
 		SetNaN64(&p->result);
 		err = NON_EXISTENT_WAVE;
 		goto done;
 	}
-	if (!(WaveType(p->CoefHandle) != NT_FP64 || WaveType(p->YWaveHandle) != NT_FP64 || WaveType(p->XWaveHandle) != NT_FP64
-		  || WaveType(p->XWaveHandle) != NT_FP32 || WaveType(p->YWaveHandle) != NT_FP32 || WaveType(p->CoefHandle) != NT_FP32)){
+	//check that all the supplied waves have the correct numerical type.
+	if (!(WaveType(p->CoefHandle) != NT_FP64 ||
+			WaveType(p->YWaveHandle) != NT_FP64 ||
+				WaveType(p->XWaveHandle) != NT_FP64 ||
+					WaveType(p->XWaveHandle) != NT_FP32 || 
+						WaveType(p->YWaveHandle) != NT_FP32 ||
+							WaveType(p->CoefHandle) != NT_FP32)){
 		SetNaN64(&p->result);
 		err = REQUIRES_SP_OR_DP_WAVE;
 		goto done;
 	}
 	
-	if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1){
+	//see if there is a multilayer model specified and get the values for the multilayer
+	if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1)
 		Vmullayers=0;
-	} else{
+	else
 		Vmullayers=(long)realVal;
-	}
 	
-	if(FetchNumVar("Vappendlayer", &realVal, &imagVal) == -1){
+	if(FetchNumVar("Vappendlayer", &realVal, &imagVal) == -1)
 		Vappendlayer = 0;
-	} else{
+	else
 		Vappendlayer=(long)realVal;
-	}
 	
-	if(FetchNumVar("Vmulrep", &realVal, &imagVal) == -1){
+	if(FetchNumVar("Vmulrep", &realVal, &imagVal) == -1)
 		Vmulrep=0;
-	} else{
+	 else
 		Vmulrep=(long)realVal;
-	}
 	
 	ncoefs= WavePoints(p->CoefHandle);
 	npoints = WavePoints(p->YWaveHandle);
@@ -128,15 +166,28 @@ AbelesAll(FitParamsAllPtr p){
 	if(err = MDGetDPDataFromNumericWave(p->XWaveHandle, xP))
 		goto done;
 	
+	//the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
+	//if not, the coefficient wave is wrong.
 	nlayers = (long)coefP[0];
 	if(ncoefs != (4*Vmullayers+(4*nlayers+6))){
 		err = INCORRECT_INPUT;
 		goto done;
 	};
 	
+	//create threads for the calculation
 	threads = (pthread_t *) malloc(NUM_CPUS * sizeof(pthread_t));
-	arg=(refCalcParm *)malloc(sizeof(refCalcParm)*NUM_CPUS);
-	pointsEachThread = floorl(npoints/NUM_CPUS);
+	if(!threads){
+		err = NOMEM;
+		goto done;
+	}
+	//create arguments to be supplied to each of the threads
+	arg = (refCalcParm *) malloc (sizeof(refCalcParm)*NUM_CPUS);
+	if(!arg){
+		err = NOMEM;
+		goto done;
+	}
+	//need to calculated how many points are given to each thread.
+	pointsEachThread = floorl(npoints / NUM_CPUS);
 	pointsRemaining = npoints;
 	
 	for (ii = 0; ii < NUM_CPUS; ii++){
@@ -149,22 +200,25 @@ AbelesAll(FitParamsAllPtr p){
 		arg[ii].Vmullayers = Vmullayers;
 		arg[ii].Vappendlayer = Vappendlayer;
 		arg[ii].Vmulrep = Vmulrep;
+		
+		//the following two lines specify where the Q values and R values will be sourced/written.
+		//i.e. an offset of the original array.
 		arg[ii].xP = xP+pointsConsumed;
 		arg[ii].yP = yP+pointsConsumed;
+		
+		//start the thread running
 		pthread_create(&threads[ii], NULL, AbelesThreadWorker, (void *)(arg+ii));
 		pointsRemaining -= pointsEachThread;
 		pointsConsumed += pointsEachThread;
 	}
 	
-	for (ii = 0; ii < NUM_CPUS; ii++){
+	//wait for all the threads to stop
+	pthread_join(threads[0], NULL);
+	
+	for (ii = 1; ii < NUM_CPUS; ii++)
 		pthread_join(threads[ii], NULL);
-	}
 	
-	if(threads)
-		free(threads);
-	if(arg)
-		free(arg);
-	
+	//put the reflectivity data back into the y wave supplied.
 	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle,yP))
 		goto done;
 	
@@ -172,6 +226,12 @@ AbelesAll(FitParamsAllPtr p){
 	p->result = 0;		// not actually used by FuncFit
 	
 done:
+	//now have to free the thread memory and argument memory
+	if(threads)
+		free(threads);
+	if(arg)
+		free(arg);
+	
 	if(xP != NULL)
 		delete [] xP;
 	if(yP != NULL)
@@ -373,10 +433,12 @@ Abeles_imagAll(FitParamsAllPtr p)
 		pointsRemaining -= pointsEachThread;
 		pointsConsumed += pointsEachThread;
 	}
+
+	pthread_join(threads[0], NULL);
 	
-	for (ii = 0; ii < NUM_CPUS; ii++){
+	for (ii = 1; ii < NUM_CPUS; ii++)
 		pthread_join(threads[ii], NULL);
-	}
+
 	
 	if(threads)
 		free(threads);
@@ -543,6 +605,7 @@ XOPEntry(void)
 			result = RegisterFunction();	// This tells Igor the address of our function.
 			break;
 		case CLEANUP:
+			//if we are on windows we have to cleanup the pthread library
 #ifdef _WINDOWS_
 			pthread_win32_process_detach_np();
 #endif
@@ -570,6 +633,7 @@ HOST_IMPORT void main(IORecHandle ioRecHandle)
 	
 	extern int NUM_CPUS;
 
+	//find out the number of CPU's.
 #ifdef _WINDOWS_
     SYSTEM_INFO sysInfo;  
      GetSystemInfo(&sysInfo);  
@@ -586,6 +650,7 @@ HOST_IMPORT void main(IORecHandle ioRecHandle)
 #endif
 
 #ifdef _WINDOWS_
+		//start up the pthread library
 		pthread_win32_process_attach_np();
 #endif
 	

@@ -1,6 +1,6 @@
 #pragma once
 
-
+// a class to do complex arithmetic.
 
 namespace MyComplexNumber{
 	//Complex Class definition
@@ -107,7 +107,7 @@ namespace MyComplexNumber{
 	inline double compabs(MyComplex comp)
 	{
 		//While inefficient, this prevents buffer under/overflows - from Numerical Recipes in C++
-		double placeholder=0;
+		double placeholder = 0;
 		if(comp.re >= comp.im)
 		{
 			if(comp.re == 0)
@@ -134,11 +134,6 @@ namespace MyComplexNumber{
 	
 	inline void
 	matmul(MyComplex a[2][2],MyComplex b[2][2],MyComplex c[2][2]){
-	
-//		c[0][0] = a[0][0]*b[0][0] + a[0][1]*b[1][0];
-//		c[0][1] = a[0][0]*b[0][1] + a[0][1]*b[1][1];
-//		c[1][0]	= a[1][0]*b[0][0] + a[1][1]*b[1][0];
-//		c[1][1] = a[1][0]*b[0][1] + a[1][1]*b[1][1];
 		c[0][0].re = (a[0][0].re * b[0][0].re) + (a[0][1].re * b[1][0].re) - (a[0][0].im*b[0][0].im) - (a[0][1].im*b[1][0].im);
 		c[0][1].re = (a[0][0].re * b[0][1].re) + (a[0][1].re * b[1][1].re) - (a[0][0].im*b[0][1].im) - (a[0][1].im*b[1][1].im);
 		c[1][0].re = (a[1][0].re * b[0][0].re) + (a[1][1].re * b[1][0].re) - (a[1][0].im*b[0][0].im) - (a[1][1].im*b[1][0].im);
