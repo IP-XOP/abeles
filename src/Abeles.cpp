@@ -175,14 +175,14 @@ AbelesAll(FitParamsAllPtr p){
 	};
 	
 	//create threads for the calculation
-	threads = (pthread_t *) malloc(NUM_CPUS * sizeof(pthread_t));
-	if(!threads){
+	threads = (pthread_t *) malloc((NUM_CPUS-1) * sizeof(pthread_t));
+	if(!threads && NUM_CPUS > 1){
 		err = NOMEM;
 		goto done;
 	}
 	//create arguments to be supplied to each of the threads
-	arg = (refCalcParm *) malloc (sizeof(refCalcParm)*NUM_CPUS);
-	if(!arg){
+	arg = (refCalcParm *) malloc (sizeof(refCalcParm)*(NUM_CPUS-1));
+	if(!arg && NUM_CPUS > 1){
 		err = NOMEM;
 		goto done;
 	}
@@ -190,12 +190,10 @@ AbelesAll(FitParamsAllPtr p){
 	pointsEachThread = floorl(npoints / NUM_CPUS);
 	pointsRemaining = npoints;
 	
-	for (ii = 0; ii < NUM_CPUS; ii++){
+	//if you have two CPU's, only create one extra thread because the main thread does half the work
+	for (ii = 0; ii < NUM_CPUS - 1; ii++){
 		arg[ii].coefP = coefP;
-		if(ii == NUM_CPUS-1)
-			arg[ii].npoints = pointsRemaining;
-		else
-			arg[ii].npoints = pointsEachThread;
+		arg[ii].npoints = pointsEachThread;
 		
 		arg[ii].Vmullayers = Vmullayers;
 		arg[ii].Vappendlayer = Vappendlayer;
@@ -206,20 +204,20 @@ AbelesAll(FitParamsAllPtr p){
 		arg[ii].xP = xP+pointsConsumed;
 		arg[ii].yP = yP+pointsConsumed;
 		
-		//start the thread running
 		pthread_create(&threads[ii], NULL, AbelesThreadWorker, (void *)(arg+ii));
 		pointsRemaining -= pointsEachThread;
 		pointsConsumed += pointsEachThread;
 	}
 	
-	//wait for all the threads to stop
-	pthread_join(threads[0], NULL);
-	
-	for (ii = 1; ii < NUM_CPUS; ii++)
+	//do the remaining points in the main thread.
+	if(err = AbelesCalcAll(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
+		goto done;
+		
+	for (ii = 0; ii < NUM_CPUS - 1 ; ii++)
 		pthread_join(threads[ii], NULL);
 	
 	//put the reflectivity data back into the y wave supplied.
-	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle,yP))
+	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle, yP))
 		goto done;
 	
 	WaveHandleModified(p->YWaveHandle);
@@ -412,40 +410,47 @@ Abeles_imagAll(FitParamsAllPtr p)
 		goto done;
 	}
 	
-	threads = (pthread_t *) malloc(NUM_CPUS * sizeof(pthread_t));
-	arg=(refCalcParm *)malloc(sizeof(refCalcParm)*NUM_CPUS);
-	pointsEachThread = floorl(npoints/NUM_CPUS);
+	//create threads for the calculation
+	threads = (pthread_t *) malloc((NUM_CPUS-1) * sizeof(pthread_t));
+	if(!threads && NUM_CPUS > 1){
+		err = NOMEM;
+		goto done;
+	}
+	//create arguments to be supplied to each of the threads
+	arg = (refCalcParm *) malloc (sizeof(refCalcParm)*(NUM_CPUS-1));
+	if(!arg && NUM_CPUS > 1){
+		err = NOMEM;
+		goto done;
+	}
+	//need to calculated how many points are given to each thread.
+	pointsEachThread = floorl(npoints / NUM_CPUS);
 	pointsRemaining = npoints;
 	
-	for (ii = 0; ii < NUM_CPUS; ii++){
+	for (ii = 0; ii < NUM_CPUS - 1; ii++){
 		arg[ii].coefP = coefP;
-		if(ii == NUM_CPUS-1)
-			arg[ii].npoints = pointsRemaining;
-		else
-			arg[ii].npoints = pointsEachThread;
+		arg[ii].npoints = pointsEachThread;
 		
 		arg[ii].Vmullayers = Vmullayers;
 		arg[ii].Vappendlayer = Vappendlayer;
 		arg[ii].Vmulrep = Vmulrep;
+		
+		//the following two lines specify where the Q values and R values will be sourced/written.
+		//i.e. an offset of the original array.
 		arg[ii].xP = xP+pointsConsumed;
 		arg[ii].yP = yP+pointsConsumed;
+		
 		pthread_create(&threads[ii], NULL, AbelesImagThreadWorker, (void *)(arg+ii));
 		pointsRemaining -= pointsEachThread;
 		pointsConsumed += pointsEachThread;
 	}
-
-	pthread_join(threads[0], NULL);
 	
-	for (ii = 1; ii < NUM_CPUS; ii++)
+	//do the remaining points in the main thread.
+	if(err = AbelesCalc_ImagAll(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
+		goto done;
+		
+	for (ii = 0; ii < NUM_CPUS - 1 ; ii++)
 		pthread_join(threads[ii], NULL);
-
-	
-	if(threads)
-		free(threads);
-	if(arg)
-		free(arg);
-	
-	
+		
 	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle,yP))
 		goto done;
 	
@@ -453,6 +458,10 @@ Abeles_imagAll(FitParamsAllPtr p)
 	p->result = 0;		// not actually used by FuncFit
 	
 done:
+	if(threads)
+		free(threads);
+	if(arg)
+		free(arg);
 	if(xP != NULL)
 		delete [] xP;
 	if(yP != NULL)
