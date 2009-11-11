@@ -18,6 +18,8 @@ calculates specular reflectivity as a function of Q momentum transfer.
 #include "semaphore.h"
 #endif
 
+#include "TThreadPool.hh"
+
 #include "XOPStructureAlignmentTwoByte.h"	// All structures passed to Igor are two-byte aligned.
 
 /*
@@ -65,6 +67,8 @@ typedef struct SmearedParamsAll {
  */
 int NUM_CPUS=1;
 
+TThreadPool *pool = NULL;
+
 /*
  An all at once fit function.  You send all the Qvalues and a model wave, and get all the reflectivity values back.
  */
@@ -105,6 +109,9 @@ AbelesAll(FitParamsAllPtr p){
 	long pointsEachThread = 0;
 	long pointsRemaining = 0;
 	long pointsConsumed = 0;
+	
+	extern TThreadPool *pool;
+	TAbelesJob *job = new TAbelesJob( -1);
 	
 	//have to check that all the supplied wave references exist
 	if (p->CoefHandle == NULL ||
@@ -204,17 +211,20 @@ AbelesAll(FitParamsAllPtr p){
 		arg[ii].xP = xP+pointsConsumed;
 		arg[ii].yP = yP+pointsConsumed;
 		
-		pthread_create(&threads[ii], NULL, AbelesThreadWorker, (void *)(arg+ii));
-		pointsRemaining -= pointsEachThread;
-		pointsConsumed += pointsEachThread;
+		pool->run(job, (void*)(arg+ii), false);
+		
+//		pthread_create(&threads[ii], NULL, AbelesThreadWorker, (void *)(arg+ii));
+//		pointsRemaining -= pointsEachThread;
+//		pointsConsumed += pointsEachThread;
 	}
 	
 	//do the remaining points in the main thread.
 	if(err = AbelesCalcAll(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
 		goto done;
-		
+			
 	for (ii = 0; ii < NUM_CPUS - 1 ; ii++)
-		pthread_join(threads[ii], NULL);
+		pool->sync(job);
+	//	pthread_join(threads[ii], NULL);
 	
 	//put the reflectivity data back into the y wave supplied.
 	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle, yP))
@@ -236,6 +246,8 @@ done:
 		delete [] yP;
 	if(coefP != NULL)
 		delete [] coefP;
+	if(job)
+		delete job;
 	
 	return err;	
 }
@@ -348,8 +360,7 @@ Abeles_imagAll(FitParamsAllPtr p)
 	long pointsEachThread = 0;
 	long pointsRemaining = 0;
 	long pointsConsumed = 0;
-
-	
+		
 	if (p->CoefHandle == NIL ||	p->YWaveHandle == NIL || p->XWaveHandle == NIL ){
 		SetNaN64(&p->result);
 		err = NON_EXISTENT_WAVE;
@@ -608,12 +619,14 @@ static void
 XOPEntry(void)
 {	
 	long result = 0;
-	
+	extern TThreadPool *pool;	
 	switch (GetXOPMessage()) {
 		case FUNCADDRS:
 			result = RegisterFunction();	// This tells Igor the address of our function.
 			break;
 		case CLEANUP:
+			delete pool;
+			
 			//if we are on windows we have to cleanup the pthread library
 #ifdef _WINDOWS_
 			pthread_win32_process_detach_np();
@@ -641,7 +654,7 @@ HOST_IMPORT void main(IORecHandle ioRecHandle)
 	SetXOPEntry(XOPEntry);							// Set entry point for future calls.
 	
 	extern int NUM_CPUS;
-
+	extern TThreadPool *pool;
 	//find out the number of CPU's.
 #ifdef _WINDOWS_
     SYSTEM_INFO sysInfo;  
@@ -662,6 +675,8 @@ HOST_IMPORT void main(IORecHandle ioRecHandle)
 		//start up the pthread library
 		pthread_win32_process_attach_np();
 #endif
+	
+	pool = new TThreadPool( NUM_CPUS-1);
 	
 	if (igorVersion < 400)
 		SetXOPResult(REQUIRES_IGOR_400);

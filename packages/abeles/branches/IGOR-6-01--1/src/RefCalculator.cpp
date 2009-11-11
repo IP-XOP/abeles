@@ -21,7 +21,10 @@
 #include "semaphore.h"
 #endif
 
+#include "TThreadPool.hh"
+
 using namespace MyComplexNumber;
+
 
 void *AbelesThreadWorker(void *arg){
 	int err = NULL;

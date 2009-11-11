@@ -6,6 +6,9 @@
  *  Copyright 2009 __MyCompanyName__. All rights reserved.
  *
  */
+
+#include "TThreadPool.hh"
+
 	void *AbelesThreadWorker(void *arg);
 	void *AbelesImagThreadWorker(void *arg);
 //	using namespace std;
@@ -32,4 +35,19 @@ typedef struct{
 	//the Q values to do the calculation for.
 	double *xP;	
 }  refCalcParm;
+
+class TAbelesJob : public TThreadPool::TJob
+{
+protected:
+    int   _size;
+    
+public:
+	TAbelesJob ( int i) : TThreadPool::TJob( i ){}
+	
+    virtual void run ( void * arg)
+    {
+		refCalcParm *p = (refCalcParm *) arg;
+		AbelesCalcAll(p->coefP, p->yP, p->xP, p->npoints, p->Vmullayers, p->Vappendlayer, p->Vmulrep);
+    }
+};
 
