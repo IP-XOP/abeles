@@ -19,6 +19,8 @@
 #include "pthread.h"
 #include "sched.h"
 #include "semaphore.h"
+#include "implement.h"
+
 #endif
 
 using namespace MyComplexNumber;
@@ -29,7 +31,7 @@ void *AbelesThreadWorker(void *arg){
 	err = AbelesCalcAll(p->coefP, p->yP, p->xP, p->npoints, p->Vmullayers, p->Vappendlayer, p->Vmulrep);
 	
 #ifdef _WINDOWS_
-	pthread_win32_thread_detach_np();
+//	pthread_win32_thread_detach_np();
 #endif
 	pthread_exit((void*)err);
 	return NULL;
@@ -41,7 +43,7 @@ void *AbelesImagThreadWorker(void *arg){
 	err = AbelesCalc_ImagAll(p->coefP, p->yP, p->xP, p->npoints, p->Vmullayers, p->Vappendlayer, p->Vmulrep);
 
 #ifdef _WINDOWS_
-	pthread_win32_thread_detach_np();
+//	pthread_win32_thread_detach_np();
 #endif	
 	pthread_exit((void*)err);
 	return NULL;

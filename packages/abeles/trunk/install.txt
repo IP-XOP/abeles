@@ -1,5 +1,10 @@
 To install the Abeles XOP please follow the following instructions.	
 1) Read the licence first.
 2) Please update to the latest IGOR version.  (if you have the demo version, please download the most recent release).
-3) Place the abeles.xop abeles help.ihf files in a directory where you can remember where you put them (e.g. the Motofit directory)
-4) Create a shortcut (or alias) to the Abeles.xop file and place the shortcut in the \Igor Pro Folder\Igor Extensions\ folder.
+3) Place the "abeles.xop" and "abeles help.ihf" files somewhere on your hard drive (e.g. "/Igor Pro Folder/User Procedures/motofit/Abeles").
+4) Create a shortcut (or alias) to the Abeles.xop file and place the shortcut in the "/Igor Pro Folder/Igor Extensions/" folder.
+
+Windows ONLY
+5) Place the pthreadVC2.dll file in "C:/Program Files/Igor Pro Folder", at the same level as Igor.exe
+
+pthreadsVC2.dll is a windows library for parallelisation.  The source can be obtained from http://sourceware.org/pthreads-win32/

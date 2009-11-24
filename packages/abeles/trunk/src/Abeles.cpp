@@ -616,7 +616,7 @@ XOPEntry(void)
 		case CLEANUP:
 			//if we are on windows we have to cleanup the pthread library
 #ifdef _WINDOWS_
-			pthread_win32_process_detach_np();
+	//		pthread_win32_process_detach_np();
 #endif
 			break;
 	}
@@ -660,7 +660,7 @@ HOST_IMPORT void main(IORecHandle ioRecHandle)
 
 #ifdef _WINDOWS_
 		//start up the pthread library
-		pthread_win32_process_attach_np();
+//		pthread_win32_process_attach_np();
 #endif
 	
 	if (igorVersion < 400)
