@@ -614,10 +614,7 @@ XOPEntry(void)
 			result = RegisterFunction();	// This tells Igor the address of our function.
 			break;
 		case CLEANUP:
-			//if we are on windows we have to cleanup the pthread library
-#ifdef _WINDOWS_
-	//		pthread_win32_process_detach_np();
-#endif
+
 			break;
 	}
 	SetXOPResult(result);
@@ -656,11 +653,6 @@ HOST_IMPORT void main(IORecHandle ioRecHandle)
 	mib[1] = HW_NCPU;
 	len = sizeof(NUM_CPUS);
 	sysctl(mib, 2, &NUM_CPUS, &len, NULL, 0);
-#endif
-
-#ifdef _WINDOWS_
-		//start up the pthread library
-//		pthread_win32_process_attach_np();
 #endif
 	
 	if (igorVersion < 400)
