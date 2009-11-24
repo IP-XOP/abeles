@@ -30,6 +30,10 @@ void *AbelesThreadWorker(void *arg){
 	refCalcParm *p = (refCalcParm *) arg;
 	err = AbelesCalcAll(p->coefP, p->yP, p->xP, p->npoints, p->Vmullayers, p->Vappendlayer, p->Vmulrep);
 
+//#ifdef _WINDOWS_
+	//	pthread_win32_thread_detach_np();
+//#endif
+	
 	pthread_exit((void*)err);
 	return NULL;
 }
@@ -38,6 +42,9 @@ void *AbelesImagThreadWorker(void *arg){
 	int err = NULL;
 	refCalcParm *p = (refCalcParm *) arg;
 	err = AbelesCalc_ImagAll(p->coefP, p->yP, p->xP, p->npoints, p->Vmullayers, p->Vappendlayer, p->Vmulrep);
+//#ifdef _WINDOWS_
+	//	pthread_win32_thread_detach_np();
+//#endif
 	pthread_exit((void*)err);
 	return NULL;
 }
