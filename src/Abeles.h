@@ -27,10 +27,7 @@ HOST_IMPORT void main(IORecHandle ioRecHandle);
 #define WAVES_NOT_SAME_LENGTH 5 + FIRST_XOP_ERR
 #define REQUIRES_DP_WAVE 6 + FIRST_XOP_ERR
 
-#define PI 3.14159265358979323846
-
  int Abelescalc(double*,double, double*);
  int Abelescalc_imag(double*,double,double*);
- int smearedAbelescalcAll(double *coefP, double *yP, double *xP, double *dxP, long npoints);
  void matmul(MyComplex,MyComplex,MyComplex);
  MyComplex fres(MyComplex,MyComplex,double);
