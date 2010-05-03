@@ -77,10 +77,10 @@ int ParrattCalcAll(const double *coefP, double *yP, const double *xP,long npoint
 	//fillout all the SLD's for all the layers
 	for(ii = 1 ; ii < nlayers+1 ; ii += 1){
 		numtemp = 1.e-6 * ((100. - coefP[4*ii+4])/100.) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1.e-6)/100.;		//sld of the layer
-		*(SLDmatrix+ii) = 4 * M_PI * (numtemp  - (coefP[2] * 1e-6));
+		*(SLDmatrix+ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));
 	}
 	*(SLDmatrix) = 0;
-	*(SLDmatrix+nlayers+1) = 4 * M_PI * ((coefP[3] * 1e-6) - (coefP[2] * 1e-6));
+	*(SLDmatrix+nlayers+1) = 4 * PI * ((coefP[3] * 1e-6) - (coefP[2] * 1e-6));
 	
 	for (j = 0; j < npoints ; j+=1) {
 		//intialise the matrices
@@ -209,10 +209,10 @@ AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, in
 	//fillout all the SLD's for all the layers
 	for(ii = 1 ; ii < nlayers+1 ; ii += 1){
 		numtemp = 1.e-6 * ((100. - coefP[4*ii+4])/100.) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1.e-6)/100.;		//sld of the layer
-		*(SLDmatrix + ii) = 4 * M_PI * (numtemp  - (coefP[2] * 1e-6));
+		*(SLDmatrix + ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));
 	}
 	*(SLDmatrix) = 0;
-	*(SLDmatrix + nlayers + 1) = 4 * M_PI * ((coefP[3] * 1e-6) - (coefP[2] * 1e-6));
+	*(SLDmatrix + nlayers + 1) = 4 * PI * ((coefP[3] * 1e-6) - (coefP[2] * 1e-6));
 	
 	if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >= 0){
 		//set up an array for wavevectors
@@ -226,7 +226,7 @@ AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, in
 			memset(pj_mul, 0, sizeof(pj_mul));
 			for(ii=0; ii<Vmullayers;ii+=1){
 				numtemp = (coefP[3]*1e-6*coefP[(4*ii)+offset+2]/100) +(1e-6 * ((100 - coefP[(4*ii)+offset+2])/100) * coefP[(4*ii)+offset+1]);		//sld of the layer
-				*(SLDmatrixREP + ii) = 4 * M_PI * (numtemp  - (coefP[2] * 1e-6));
+				*(SLDmatrixREP + ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));
 			}
 	}
 	
@@ -435,10 +435,10 @@ AbelesCalc_ImagAll(double *coefP, double *yP, double *xP,long npoints, int Vmull
 
 	//fillout all the SLD's for all the layers
 	for(ii=1; ii<nlayers+1;ii+=1)
-		*(SLDmatrix + ii) = 4 * M_PI * (MyComplex(coefP[4 * ii + 5] * 1e-6, coefP[4 * ii + 6]) - super);
+		*(SLDmatrix + ii) = 4 * PI * (MyComplex(coefP[4 * ii + 5] * 1e-6, coefP[4 * ii + 6]) - super);
 
 	*(SLDmatrix) = MyComplex(0,0);
-	*(SLDmatrix + nlayers + 1) = 4 * M_PI * (sub - super);
+	*(SLDmatrix + nlayers + 1) = 4 * PI * (sub - super);
 	
 	if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >= 0){
 	//set up an array for wavevectors
@@ -452,7 +452,7 @@ AbelesCalc_ImagAll(double *coefP, double *yP, double *xP,long npoints, int Vmull
 		memset(pj_mul, 0, sizeof(pj_mul));
 		memset(SLDmatrixREP,0,sizeof(SLDmatrixREP));
 		for(ii=0; ii<Vmullayers;ii+=1)
-			*(SLDmatrixREP + ii) = 4 * M_PI * (MyComplex(coefP[(4 * ii) + offset + 1] * 1e-6, coefP[(4 * ii) + offset + 2])  - super);
+			*(SLDmatrixREP + ii) = 4 * PI * (MyComplex(coefP[(4 * ii) + offset + 1] * 1e-6, coefP[(4 * ii) + offset + 2])  - super);
 	}
 
 
@@ -659,10 +659,10 @@ smearedAbelescalcAll(double *coefP, double *yP, double *xP, double *dxP, long np
 	//fillout all the SLD's for all the layers
 	for(ii=1; ii<nlayers+1;ii+=1){
 		numtemp = 1.e-6 * ((100. - coefP[4*ii+4])/100.) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1.e-6)/100.;		//sld of the layer
-		*(SLDmatrix+ii) = 4 * M_PI * (numtemp  - (coefP[2]*1e-6));
+		*(SLDmatrix+ii) = 4 * PI * (numtemp  - (coefP[2]*1e-6));
 	}
 	*(SLDmatrix) = 0;
-	*(SLDmatrix+nlayers+1) = 4 * M_PI * ((coefP[3]*1e-6) - (coefP[2]*1e-6));
+	*(SLDmatrix+nlayers+1) = 4 * PI * ((coefP[3]*1e-6) - (coefP[2]*1e-6));
 	
 	if(FetchNumVar("Vmullayers", &realVal, &imagVal)!=-1){ // Fetch value
 		Vmullayers=(int)realVal;
@@ -683,7 +683,7 @@ smearedAbelescalcAll(double *coefP, double *yP, double *xP, double *dxP, long np
 			memset(pj_mul, 0, sizeof(pj_mul));
 			for(ii=0; ii<Vmullayers;ii+=1){
 				numtemp = (coefP[3]*1e-6*coefP[(4*ii)+offset+2]/100) +(1e-6 * ((100 - coefP[(4*ii)+offset+2])/100) * coefP[(4*ii)+offset+1]);		//sld of the layer
-				*(SLDmatrixREP+ii) = 4 * M_PI * (numtemp  - (coefP[2]*1e-6));
+				*(SLDmatrixREP+ii) = 4 * PI * (numtemp  - (coefP[2]*1e-6));
 			}
 		}
 	}
