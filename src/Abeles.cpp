@@ -666,7 +666,7 @@ XOPEntry(void)
 #ifdef _MACINTOSH_
 HOST_IMPORT int main(IORecHandle ioRecHandle)
 #endif	
-#ifdef _WINDOWS
+#ifdef _WINDOWS_
 HOST_IMPORT void main(IORecHandle ioRecHandle)
 #endif
 {	
@@ -751,10 +751,10 @@ Abelescalc(double *coefP, double x, double *result){
 	//fillout all the SLD's for all the layers
 	for(ii=1; ii<nlayers+1;ii+=1){
 		numtemp = 1e-6 * ((100 - coefP[4*ii+4])/100) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1e-6)/100;		//sld of the layer
-		*(SLDmatrix+ii) = 4 * M_PI * (numtemp  - (coefP[2]*1e-6));
+		*(SLDmatrix+ii) = 4 * PI * (numtemp  - (coefP[2]*1e-6));
 	}
 	*(SLDmatrix) = 0;
-	*(SLDmatrix+nlayers+1) = 4* M_PI * ((coefP[3]*1e-6) - (coefP[2]*1e-6));
+	*(SLDmatrix+nlayers+1) = 4* PI * ((coefP[3]*1e-6) - (coefP[2]*1e-6));
 	
 	if(FetchNumVar("Vmullayers", &realVal, &imagVal)!=-1){ // Fetch value
 		Vmullayers=(int)realVal;
@@ -775,7 +775,7 @@ Abelescalc(double *coefP, double x, double *result){
 			memset(pj_mul, 0, sizeof(pj_mul));
 			for(ii=0; ii<Vmullayers;ii+=1){
 				numtemp = (coefP[3]*1e-6*coefP[(4*ii)+offset+2]/100) +(1e-6 * ((100 - coefP[(4*ii)+offset+2])/100) * coefP[(4*ii)+offset+1]);		//sld of the layer
-				*(SLDmatrixREP + ii) = 4 * M_PI * (numtemp  - (coefP[2] * 1e-6));
+				*(SLDmatrixREP + ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));
 			}
 		}
 	}
@@ -983,10 +983,10 @@ Abelescalc_imag(double *coefP, double x, double *result){
 	
 	//fillout all the SLD's for all the layers
 	for(ii=1; ii<nlayers+1;ii+=1){
-		*(SLDmatrix+ii) = MyComplex(4 * M_PI , 0)*(MyComplex(coefP[4*ii+5]*1e-6,coefP[4*ii+6])-super);
+		*(SLDmatrix+ii) = MyComplex(4 * PI , 0)*(MyComplex(coefP[4*ii+5]*1e-6,coefP[4*ii+6])-super);
 	}
 	*(SLDmatrix) = MyComplex(0,0);
-	*(SLDmatrix+nlayers+1) = MyComplex(4 * M_PI, 0) * (sub - super);
+	*(SLDmatrix+nlayers+1) = MyComplex(4 * PI, 0) * (sub - super);
 	
 	if(FetchNumVar("Vmullayers", &realVal, &imagVal)!=-1){ // Fetch value
 		Vmullayers=(int)realVal;
@@ -1007,7 +1007,7 @@ Abelescalc_imag(double *coefP, double x, double *result){
 			memset(pj_mul, 0, sizeof(pj_mul));
 			memset(SLDmatrixREP,0,sizeof(SLDmatrixREP));
 			for(ii=0; ii<Vmullayers;ii+=1){
-				*(SLDmatrixREP+ii) = MyComplex(4 * M_PI, 0)*(MyComplex(coefP[(4*ii)+offset+1]*1e-6,coefP[(4*ii)+offset+2])  - super);
+				*(SLDmatrixREP+ii) = MyComplex(4 * PI, 0)*(MyComplex(coefP[(4*ii)+offset+1]*1e-6,coefP[(4*ii)+offset+2])  - super);
 			}
 		}
 	}
