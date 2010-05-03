@@ -46,25 +46,25 @@ namespace MyComplexNumber{
 
 		friend MyComplex operator+(MyComplex lhs,MyComplex rhs)
 		{
-			return MyComplex(lhs.re+rhs.re,lhs.im+rhs.im);
+			return MyComplex(lhs.re + rhs.re, lhs.im + rhs.im);
 		}
 
 		friend const MyComplex operator-(const MyComplex lhs, const MyComplex rhs)
 		{
-			return MyComplex(lhs.re-rhs.re,lhs.im-rhs.im);
+			return MyComplex(lhs.re - rhs.re, lhs.im - rhs.im);
 		}
 	};
 
 	//Complex functions
 	inline MyComplex compexp(MyComplex comp)
 	{
-	//	double exponent = exp(comp.re);
-		return MyComplex(exp(comp.re)*cos(comp.im),exp(comp.re)*sin(comp.im));
+		double exponent = exp(comp.re);
+		return MyComplex(exponent * cos(comp.im), exponent * sin(comp.im));
 	}
 
 	inline MyComplex compcos(MyComplex comp)
 	{
-		return MyComplex(cos(comp.re)*cosh(comp.im),0-(sin(comp.re)*sinh(comp.im)));
+		return MyComplex(cos(comp.re) * cosh(comp.im), 0 - (sin(comp.re) * sinh(comp.im)));
 	}
 
 	inline MyComplex compsin(MyComplex comp)
@@ -79,7 +79,7 @@ namespace MyComplexNumber{
 	
     inline double compnorm(MyComplex comp)
 	{
-		return comp.im*comp.im+comp.re*comp.re;
+		return comp.im * comp.im + comp.re * comp.re;
 	}
 
 	inline MyComplex compsqrt(MyComplex comp)
