@@ -605,6 +605,193 @@ done:
 	return err;
 }
 
+int
+parrattReflectance(FitParamsAllPtr p){
+	//number of coefficients, number of Q points
+	long ncoefs,npoints;
+	
+	//temporary places for calculation
+	double realVal,imagVal;
+	
+	//how many layers you have
+	long nlayers;
+	
+	//how many layers in multilayer (if you have one)
+	long Vmullayers=-1;
+	//where in the normal model the multilayer gets appended to
+	long Vappendlayer=0;
+	//how many times the multilayer repeats
+	long Vmulrep=0;
+	
+	//the return code of the function
+	long err=0;
+	//a variable for iterating for loops
+	long ii;
+	
+	//we will extract values from the supplied waves and store them as double arrays
+	//these pointers refer to the values extracted.
+	double *coefP = NULL;
+	double *xP = NULL;
+	double *yP = NULL;
+	
+	//variables for the threadwise calculation of the reflectivity
+	extern int NUM_CPUS;
+	int threadsToCreate = 1;
+	float isItWorthThreading = 0;
+	pthread_t *threads = NULL;
+	refCalcParm *arg = NULL;
+	long pointsEachThread = 0;
+	long pointsRemaining = 0;
+	long pointsConsumed = 0;
+	
+	//have to check that all the supplied wave references exist
+	if (p->CoefHandle == NULL ||
+		p->YWaveHandle == NULL ||
+		p->XWaveHandle == NULL ){
+		SetNaN64(&p->result);
+		err = NON_EXISTENT_WAVE;
+		goto done;
+	}
+	//check that all the supplied waves have the correct numerical type.
+	if (!(WaveType(p->CoefHandle) != NT_FP64 ||
+		  WaveType(p->YWaveHandle) != NT_FP64 ||
+		  WaveType(p->XWaveHandle) != NT_FP64 ||
+		  WaveType(p->XWaveHandle) != NT_FP32 || 
+		  WaveType(p->YWaveHandle) != NT_FP32 ||
+		  WaveType(p->CoefHandle) != NT_FP32)){
+		SetNaN64(&p->result);
+		err = REQUIRES_SP_OR_DP_WAVE;
+		goto done;
+	}
+	
+	ncoefs= WavePoints(p->CoefHandle);
+	npoints = WavePoints(p->YWaveHandle);
+	if (npoints != WavePoints(p->XWaveHandle)){
+		SetNaN64(&p->result);
+		err = WAVES_NOT_SAME_LENGTH;
+		goto done;
+	}
+	
+	try{
+		coefP =  new double[ncoefs];
+		xP =  new double[npoints];
+		yP = new double[npoints];
+	} catch (...){
+		err = NOMEM;
+		goto done;
+	}
+	
+	if(err = MDGetDPDataFromNumericWave(p->CoefHandle, coefP))
+		goto done;
+	if(err = MDGetDPDataFromNumericWave(p->YWaveHandle, yP))
+		goto done;
+	if(err = MDGetDPDataFromNumericWave(p->XWaveHandle, xP))
+		goto done;
+	
+	//the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
+	//if not, the coefficient wave is wrong.
+	nlayers = (long)coefP[0];
+	if(ncoefs != 4 * nlayers + 6){
+		//this may meanthere is a multilayer model specified
+		if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1)
+			Vmullayers=0;
+		else
+			Vmullayers=(long)realVal;
+		
+		if(ncoefs != (4 * nlayers + 6) + 4 * Vmullayers){
+			err = INCORRECT_INPUT;
+			goto done;
+		}
+		
+		if(FetchNumVar("Vappendlayer", &realVal, &imagVal) == -1)
+			Vappendlayer = 0;
+		else
+			Vappendlayer=(long)realVal;
+		
+		if(FetchNumVar("Vmulrep", &realVal, &imagVal) == -1)
+			Vmulrep=0;
+		else
+			Vmulrep=(long)realVal;
+	};
+	
+	//this relationship was worked out for a dualcore machine.
+	//I worked out how long it took for a certain number of points and a certain number of layers
+	//then I calculated the cross over for when it was worth threading, rather than not.
+	//i.e. for a given number of layers, how many points were required for multithreading to be worthwhile.
+	//I plotted the number of points (y) vs the number of layers (x), giving the following relationship.
+	isItWorthThreading = 3.382 + 641. *pow(coefP[0], -0.73547);
+	if((float) npoints < isItWorthThreading)
+		threadsToCreate = 1;
+	else
+		threadsToCreate = NUM_CPUS;
+	
+	//create threads for the calculation
+	threads = (pthread_t *) malloc((threadsToCreate - 1) * sizeof(pthread_t));
+	if(!threads && NUM_CPUS > 1){
+		err = NOMEM;
+		goto done;
+	}
+	//create arguments to be supplied to each of the threads
+	arg = (refCalcParm *) malloc (sizeof(refCalcParm)*(threadsToCreate - 1));
+	if(!arg && NUM_CPUS > 1){
+		err = NOMEM;
+		goto done;
+	}
+	//need to calculated how many points are given to each thread.
+	pointsEachThread = floorl(npoints / threadsToCreate);
+	pointsRemaining = npoints;
+	
+	//if you have two CPU's, only create one extra thread because the main thread does half the work
+	for (ii = 0; ii < threadsToCreate - 1; ii++){
+		arg[ii].coefP = coefP;
+		arg[ii].npoints = pointsEachThread;
+		
+		arg[ii].Vmullayers = Vmullayers;
+		arg[ii].Vappendlayer = Vappendlayer;
+		arg[ii].Vmulrep = Vmulrep;
+		
+		//the following two lines specify where the Q values and R values will be sourced/written.
+		//i.e. an offset of the original array.
+		arg[ii].xP = xP+pointsConsumed;
+		arg[ii].yP = yP+pointsConsumed;
+		
+		pthread_create(&threads[ii], NULL, realReflectanceThreadWorker, (void *)(arg+ii));
+		pointsRemaining -= pointsEachThread;
+		pointsConsumed += pointsEachThread;
+	}
+	
+	//do the remaining points in the main thread.
+	if(err = realReflectance(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining))
+		goto done;
+	
+	
+	for (ii = 0; ii < threadsToCreate - 1 ; ii++)
+		pthread_join(threads[ii], NULL);
+	
+	//put the reflectivity data back into the y wave supplied.
+	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle, yP))
+		goto done;
+	
+	WaveHandleModified(p->YWaveHandle);
+	p->result = 0;		// not actually used by FuncFit
+	
+done:
+	//now have to free the thread memory and argument memory
+	if(threads)
+		free(threads);
+	if(arg)
+		free(arg);
+	
+	if(xP != NULL)
+		delete [] xP;
+	if(yP != NULL)
+		delete [] yP;
+	if(coefP != NULL)
+		delete [] coefP;
+	
+	return err;	
+}
+
 
 static long
 RegisterFunction()
@@ -628,6 +815,9 @@ RegisterFunction()
 		case 4:
 			return((long)smearedAbelesAll);
 			break;
+		case 5:
+			return((long)parrattReflectance);
+			break;
 	}
 	return NIL;
 }
@@ -645,12 +835,6 @@ XOPEntry(void)
 	switch (GetXOPMessage()) {
 		case FUNCADDRS:
 			result = RegisterFunction();	// This tells Igor the address of our function.
-			break;
-		case CLEANUP:
-//#ifdef _WINDOWS_
-			//		pthread_win32_process_detach_np();
-//#endif
-			
 			break;
 	}
 	SetXOPResult(result);
