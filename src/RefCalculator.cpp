@@ -38,9 +38,15 @@ void *AbelesImagThreadWorker(void *arg){
 	refCalcParm *p = (refCalcParm *) arg;
 	err = AbelesCalc_ImagAll(p->coefP, p->yP, p->xP, p->npoints, p->Vmullayers, p->Vappendlayer, p->Vmulrep);
 	
-//#ifdef _WINDOWS_
-	//	pthread_win32_thread_detach_np();
-//#endif
+	pthread_exit((void*)err);
+	return NULL;
+}
+
+void *realReflectanceThreadWorker(void *arg){
+	int err = NULL;
+	refCalcParm *p = (refCalcParm *) arg;
+	err = realReflectance(p->coefP, p->yP, p->xP, p->npoints);
+	
 	pthread_exit((void*)err);
 	return NULL;
 }
@@ -77,10 +83,10 @@ int ParrattCalcAll(const double *coefP, double *yP, const double *xP,long npoint
 	//fillout all the SLD's for all the layers
 	for(ii = 1 ; ii < nlayers+1 ; ii += 1){
 		numtemp = 1.e-6 * ((100. - coefP[4*ii+4])/100.) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1.e-6)/100.;		//sld of the layer
-		*(SLDmatrix+ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));
+		*(SLDmatrix+ii) = 4 * PI * (numtemp);
 	}
-	*(SLDmatrix) = 0;
-	*(SLDmatrix+nlayers+1) = 4 * PI * ((coefP[3] * 1e-6) - (coefP[2] * 1e-6));
+	*(SLDmatrix) = (coefP[2] * 1e-6);
+	*(SLDmatrix+nlayers+1) = 4 * PI * ((coefP[3] * 1e-6));
 	
 	for (j = 0; j < npoints ; j+=1) {
 		//intialise the matrices
@@ -147,10 +153,110 @@ int ParrattCalcAll(const double *coefP, double *yP, const double *xP,long npoint
 			RRJ_1.re = RRJ.re;
 			RRJ_1.im = RRJ.im;
 		}
-	
+		
 		answer = (scale*(RRJ.im * RRJ.im + RRJ.re * RRJ.re)) + bkg; 
-//		num = compnorm(RRJ);
-//		answer = (num * scale) + bkg;
+		
+		*yP++ = answer;
+	}
+	
+done:
+	if(SLDmatrix != NULL)
+		delete[] SLDmatrix;
+	
+	return err;
+}
+
+int realReflectance(const double *coefP, double *yP, const double *xP,long npoints){
+	int err = 0;
+	int j;
+	
+	int ii=0;
+	double scale,bkg,subrough;
+	double answer=0, qq;
+	double anum,anum2;
+	MyComplex temp, beta, rj, RRJ, RRJ_1, kzj, kzj_1;
+	double numtemp=0;
+	int offset=0;
+	
+	double *SLDmatrix = NULL;
+	
+	int nlayers = (int)coefP[0];
+	
+	try{
+		SLDmatrix = new double [nlayers+2];
+	} catch(...){
+		err = NOMEM;
+		goto done;
+	}
+	scale = coefP[1];
+	bkg = fabs(coefP[4]);
+	subrough = coefP[5];
+	
+	//offset tells us where the multilayers start.
+	offset = 4 * nlayers + 6;
+	
+	//fillout all the SLD's for all the layers
+	for(ii = 1 ; ii < nlayers+1 ; ii += 1){
+		numtemp = 1.e-6 * ((100. - coefP[4*ii+4])/100.) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1.e-6)/100.;		//sld of the layer
+		*(SLDmatrix+ii) = 4 * PI * (numtemp);
+	}
+	*(SLDmatrix) = (coefP[2] * 1e-6);
+	*(SLDmatrix+nlayers+1) = 4 * PI * ((coefP[3] * 1e-6));
+	
+	for (j = 0; j < npoints ; j+=1) {
+		//intialise the matrices
+		
+		qq = xP[j]*xP[j]/4;
+		
+		//start from subphase
+		kzj_1 = (*(SLDmatrix+nlayers+1) > qq) ? MyComplex(0, sqrt(fabs(qq - *(SLDmatrix+nlayers+1)))) : MyComplex(sqrt(qq - *(SLDmatrix+nlayers+1)), 0);		
+		RRJ_1.re = 0;
+		RRJ_1.im = 0;
+		
+		for(ii = nlayers ; ii > -1 ; ii--){
+			//wave vector in layer ii
+			if((*(SLDmatrix+ii) > qq)) {
+				kzj.re = 0;
+				kzj.im = sqrt(fabs(qq - *(SLDmatrix+ii)));
+			} else {
+				kzj.re = sqrt(qq - *(SLDmatrix+ii));
+				kzj.im = 0;
+			}
+			
+			//work out reflection coefficient, rj
+			if(kzj.im == 0 && kzj_1.im == 0){
+				anum = kzj.re;
+				anum2 = kzj_1.re;
+				rj.re = (ii==nlayers) ? 
+				((anum-anum2) / (anum+anum2)) * exp(anum*anum2*-2*subrough*subrough)
+				:
+				((anum-anum2) / (anum+anum2)) * exp(anum*anum2*-2*coefP[4*(ii+1)+5]*coefP[4*(ii+1)+5]);
+				rj.im = 0.;
+			} else {
+				rj = (ii == nlayers) ?
+				((kzj - kzj_1) / (kzj + kzj_1)) * compexp(kzj * kzj_1 * -2 * subrough * subrough)
+				:
+				((kzj-kzj_1)/(kzj+kzj_1))*compexp(kzj*kzj_1*-2*coefP[4*(ii+1)+5]*coefP[4*(ii+1)+5]);	
+			};
+			
+			if(ii == nlayers){
+				RRJ.re = rj.re;
+				RRJ.im = rj.im;
+			} else {
+				temp.re = - 2 * fabs(coefP[4 * (ii + 1) + 2]) * kzj_1.im ;
+				temp.im = kzj_1.re * -2 *  fabs(coefP[4 * (ii + 1) + 2]);
+				beta = compexp(temp);
+				RRJ = (rj + RRJ_1 * beta) / (1 + rj * RRJ_1 * beta);
+
+			}
+			
+			kzj_1.re = kzj.re;
+			kzj_1.im = kzj.im;
+			RRJ_1.re = RRJ.re;
+			RRJ_1.im = RRJ.im;
+		}
+		
+		answer = RRJ.re;
 		
 		*yP++ = answer;
 	}

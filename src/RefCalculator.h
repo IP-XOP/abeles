@@ -8,10 +8,12 @@
  */
 	void *AbelesThreadWorker(void *arg);
 	void *AbelesImagThreadWorker(void *arg);
+	void *realReflectanceThreadWorker(void *arg);
 //	using namespace std;
 
 
 int ParrattCalcAll(const double *coefP, double *yP, const double *xP,long npoints);
+int realReflectance(const double *coefP, double *yP, const double *xP,long npoints);
 int AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, int Vmullayers, int Vmulappend, int Vmulrep);
 int AbelesCalc_ImagAll(double *coefP, double *yP, double *xP,long npoints, int Vmullayers, int Vmulappend, int Vmulrep);
 int smearedAbelescalcAll(double *coefP, double *yP, double *xP, double *dxP, long npoints);

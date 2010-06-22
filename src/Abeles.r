@@ -3,7 +3,7 @@
 resource 'vers' (1) {						/* XOP version info */
 	0x01, 0x10, final, 0x00, 0,				/* version bytes and country integer */
 	"1.10",
-	"1.10, © 1996-2004 WaveMetrics, Inc., all rights reserved."
+	"1.10, ï¿½ 1996-2004 WaveMetrics, Inc., all rights reserved."
 };
 
 resource 'vers' (2) {						/* Igor version info */
@@ -83,6 +83,15 @@ resource 'XOPF' (1100) {
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (y wave).
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (x wave).
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (dx wave).
+		},
+		
+		"parrattReflectance",					// Function name.
+		F_EXP | F_EXTERNAL,				// Function category,
+		NT_FP64,						// Return value type.
+		{
+			NT_FP64 + WAVE_TYPE,		// Double precision wave (coefficient wave).
+			NT_FP64 + WAVE_TYPE,		// Double precision wave (y wave).
+			NT_FP64 + WAVE_TYPE,		// Double precision wave (x wave).
 		},
 
 	}
