@@ -312,7 +312,7 @@ AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, in
 	offset = 4 * nlayers + 6;
 
 	//fillout all the SLD's for all the layers
-	for(ii = 1 ; ii < nlayers+1 ; ii += 1){
+	for(ii = 1 ; ii < nlayers + 1 ; ii += 1){
 		numtemp = 1.e-6 * ((100. - coefP[4*ii+4])/100.) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1.e-6)/100.;		//sld of the layer
 		*(SLDmatrix + ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));
 	}
@@ -492,7 +492,7 @@ done:
 
 
  int
-AbelesCalc_ImagAll(double *coefP, double *yP, double *xP,long npoints, int Vmullayers, int Vmulappend, int Vmulrep){
+AbelesCalc_ImagAll(const double *coefP, double *yP, const double *xP,long npoints, int Vmullayers, int Vmulappend, int Vmulrep){
 	int err = 0;
 	int j;
 	
@@ -520,7 +520,7 @@ AbelesCalc_ImagAll(double *coefP, double *yP, double *xP,long npoints, int Vmull
 	
 	try{
 		pj = new MyComplex[nlayers+2];
-		SLDmatrix = new MyComplex[nlayers+2];
+		SLDmatrix = new MyComplex[nlayers + 2];
 	} catch(...){
 		err = NOMEM;
 		goto done;
@@ -706,7 +706,7 @@ done:
 }
 
 int 
-smearedAbelescalcAll(double *coefP, double *yP, double *xP, double *dxP, long npoints){
+smearedAbelescalcAll(const double *coefP, double *yP, const double *xP, const double *dxP, long npoints){
 	int err = 0;
 	int j=0, respoints=13;
 	int Vmulrep=0,Vmulappend=0,Vmullayers=0;

@@ -63,7 +63,7 @@ typedef struct SmearedParamsAll {
  because we are going to do the calculation in a threaded fashion we need to know the number of CPU's.
  This is stored in a global so we don't need to find it out every time we call the function.
  */
-int NUM_CPUS=1;
+int NUM_CPUS = 1;
 
 /*
  An all at once fit function.  You send all the Qvalues and a model wave, and get all the reflectivity values back.
@@ -135,23 +135,11 @@ AbelesAll(FitParamsAllPtr p){
 		goto done;
 	}
 	
-	try{
-		coefP =  new double[ncoefs];
-		xP =  new double[npoints];
-		yP = new double[npoints];
-	} catch (...){
-		err = NOMEM;
-		goto done;
-	}
-	
-	if(err = MDGetDPDataFromNumericWave(p->CoefHandle, coefP))
-		goto done;
-	if(err = MDGetDPDataFromNumericWave(p->YWaveHandle, yP))
-		goto done;
-	if(err = MDGetDPDataFromNumericWave(p->XWaveHandle, xP))
-		goto done;
-	
-	//the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
+	coefP = (double*) WaveData(p->CoefHandle);
+	xP = (double*) WaveData(p->XWaveHandle);
+	yP = (double*) WaveData(p->YWaveHandle);
+
+		//the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
 	//if not, the coefficient wave is wrong.
 	nlayers = (long)coefP[0];
 	if(ncoefs != 4 * nlayers + 6){
@@ -200,6 +188,7 @@ AbelesAll(FitParamsAllPtr p){
 		err = NOMEM;
 		goto done;
 	}
+
 	//need to calculated how many points are given to each thread.
 	pointsEachThread = floorl(npoints / threadsToCreate);
 	pointsRemaining = npoints;
@@ -218,24 +207,17 @@ AbelesAll(FitParamsAllPtr p){
 		arg[ii].xP = xP+pointsConsumed;
 		arg[ii].yP = yP+pointsConsumed;
 		
-		pthread_create(&threads[ii], NULL, AbelesThreadWorker, (void *)(arg+ii));
+		pthread_create(&threads[ii], NULL, AbelesThreadWorker, (void *)(arg + ii));
 		pointsRemaining -= pointsEachThread;
 		pointsConsumed += pointsEachThread;
 	}
 	
 	//do the remaining points in the main thread.
-	if(err = AbelesCalcAll(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
+	if(err = AbelesCalcAll(coefP, yP + pointsConsumed, xP + pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
 		goto done;
-//	if(err = ParrattCalcAll(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining))
-//		goto done;
-
 	
 	for (ii = 0; ii < threadsToCreate - 1 ; ii++)
 		pthread_join(threads[ii], NULL);
-	
-	//put the reflectivity data back into the y wave supplied.
-	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle, yP))
-		goto done;
 	
 	WaveHandleModified(p->YWaveHandle);
 	p->result = 0;		// not actually used by FuncFit
@@ -246,13 +228,6 @@ done:
 		free(threads);
 	if(arg)
 		free(arg);
-	
-	if(xP != NULL)
-		delete [] xP;
-	if(yP != NULL)
-		delete [] yP;
-	if(coefP != NULL)
-		delete [] coefP;
 	
 	return err;	
 }
@@ -388,21 +363,9 @@ Abeles_imagAll(FitParamsAllPtr p)
 		goto done;
 	}
 	
-	try{
-		coefP =  new double[ncoefs];
-		xP =  new double[npoints];
-		yP = new double[npoints];
-	} catch (...){
-		err = NOMEM;
-		goto done;
-	}
-	
-	if(err = MDGetDPDataFromNumericWave(p->CoefHandle, coefP))
-		goto done;
-	if(err = MDGetDPDataFromNumericWave(p->YWaveHandle, yP))
-		goto done;
-	if(err = MDGetDPDataFromNumericWave(p->XWaveHandle, xP))
-		goto done;
+	coefP = (double*) WaveData(p->CoefHandle);
+	yP = (double*) WaveData(p->YWaveHandle);
+	xP = (double*) WaveData(p->XWaveHandle);
 	
 	//the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
 	//if not, the coefficient wave is wrong.
@@ -484,9 +447,6 @@ Abeles_imagAll(FitParamsAllPtr p)
 	for (ii = 0; ii < threadsToCreate - 1 ; ii++)
 		pthread_join(threads[ii], NULL);
 		
-	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle,yP))
-		goto done;
-	
 	WaveHandleModified(p->YWaveHandle);
 	p->result = 0;		// not actually used by FuncFit
 	
@@ -495,24 +455,16 @@ done:
 		free(threads);
 	if(arg)
 		free(arg);
-	if(xP != NULL)
-		delete [] xP;
-	if(yP != NULL)
-		delete [] yP;
-	if(coefP != NULL)
-		delete [] coefP;
 	
 	return err;		
 }
 
 int
 Abeles(FitParamsPtr p){
-	int np,err = 0;
+	int np, err = 0;
 	double *Abelesparams = NULL;
 	double x;
-	char varName[MAX_OBJ_NAME+1];
-	double realVal,imagVal;
-	int Vmullayers;
+	int Vmullayers = 0;
 	
 	if (p->waveHandle == NULL){
 		SetNaN64(&p->result);
@@ -522,34 +474,19 @@ Abeles(FitParamsPtr p){
 	
 	np= WavePoints(p->waveHandle);
 	
-	Abelesparams= (double*)malloc((np) * sizeof(double));	//pointer to my copy of the data.
-	if(Abelesparams == NULL){
-		err = NOMEM;
-		goto done;
-	}
-	
-	strcpy(varName, "Vmullayers");
-	if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1){
-		Vmullayers=0;
-	} else{
-		Vmullayers=(long)realVal;
-	}
-	
 	x= p->x;
+	Abelesparams = (double*) WaveData(p->waveHandle);
+
+	Vmullayers = ((np - 6) / 4) - (int) Abelesparams[0];
 	
-	if(err = MDGetDPDataFromNumericWave(p->waveHandle, Abelesparams)){
-		goto done;
-	}
-	if((int)np!=(int)(4*Vmullayers+4*Abelesparams[0]+6)){
+	if((int)np!=(int)(4 * Vmullayers + 4 * Abelesparams[0] + 6)){
 		err = INCORRECT_INPUT;
 		goto done;
 	};
 	
-	if(err = Abelescalc(Abelesparams,x,&p->result))
+	if(err = Abelescalc(Abelesparams, x, &p->result))
 		goto done;
 done:
-	if(Abelesparams!=NULL)
-		free(Abelesparams);
 	
 	return err;
 }
@@ -559,9 +496,7 @@ Abeles_imag(FitParamsPtr p){
 	int np, err = 0;
 	double *Abelesparams = NULL;
 	double x,result;
-	char varName[MAX_OBJ_NAME+1];
-	double realVal,imagVal;
-	int Vmullayers;
+	int Vmullayers = 0;
 	
 	if (p->waveHandle == NULL){
 		SetNaN64(&p->result);
@@ -570,37 +505,21 @@ Abeles_imag(FitParamsPtr p){
 	}
 	
 	np= WavePoints(p->waveHandle);
-	
-	Abelesparams= (double*)malloc((np) * sizeof(double));	//pointer to my copy of the data.
-	if(Abelesparams == NULL){
-		err = NOMEM;
-		goto done;
-	}
-	
-	strcpy(varName, "Vmullayers");
-	if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1){
-		Vmullayers=0;
-	} else{
-		Vmullayers=(long)realVal;
-	}
-	
+	Abelesparams= (double*) WaveData(p->waveHandle);
 	x= p->x;
 	
-	if(err = MDGetDPDataFromNumericWave(p->waveHandle, Abelesparams)){
-		goto done;
-	}
-	if((int)np!=(int)(4*Vmullayers+4*Abelesparams[0]+8)){
+	Vmullayers = ((np - 8) / 4) - (int) Abelesparams[0];
+
+	if((int)np != (int)(4 * Vmullayers + 4 * Abelesparams[0] + 8)){
 		err = INCORRECT_INPUT;
 		goto done;
 	};
 	
-	if(err = Abelescalc_imag(Abelesparams,x,&result))
+	if(err = Abelescalc_imag(Abelesparams, x, &result))
 		goto done;
 	p->result = result;
 	
 done:
-	if(Abelesparams!=NULL)
-		free(Abelesparams);
 	
 	return err;
 }
@@ -888,7 +807,7 @@ MyComplex fres(MyComplex a, MyComplex b, double rough){
 }
 
 int
-Abelescalc(double *coefP, double x, double *result){
+Abelescalc(const double *coefP, double x, double *result){
 	int err = 0;
 	
 	int Vmulrep=0,Vmulappend=0,Vmullayers=0;
@@ -965,11 +884,11 @@ Abelescalc(double *coefP, double x, double *result){
 	}
 	
 	//intialise the matrices
-	memset(MRtotal,0,sizeof(MRtotal));
+	memset(MRtotal, 0, sizeof(MRtotal));
 	MRtotal[0][0] = oneC ; MRtotal[1][1] = oneC;
 	
 	qq = x*x/4;
-	qq2=MyComplex(qq,0);
+	qq2=MyComplex(qq, 0);
 	
 	for(ii=0; ii<nlayers+2 ; ii++){			//work out the wavevector in each of the layers
 		pj[ii] = (*(SLDmatrix+ii)>qq) ? compsqrt(qq2-MyComplex(*(SLDmatrix+ii),0)): MyComplex(sqrt(qq-*(SLDmatrix+ii)),0);
@@ -1118,7 +1037,7 @@ done:
 
 
 int
-Abelescalc_imag(double *coefP, double x, double *result){
+Abelescalc_imag(const double *coefP, double x, double *result){
 	int err = 0;
 	
 	int Vmulrep=0,Vmulappend=0,Vmullayers=0;
