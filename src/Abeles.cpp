@@ -118,12 +118,9 @@ AbelesAll(FitParamsAllPtr p){
 	//check that all the supplied waves have the correct numerical type.
 	if (!(WaveType(p->CoefHandle) != NT_FP64 ||
 			WaveType(p->YWaveHandle) != NT_FP64 ||
-				WaveType(p->XWaveHandle) != NT_FP64 ||
-					WaveType(p->XWaveHandle) != NT_FP32 || 
-						WaveType(p->YWaveHandle) != NT_FP32 ||
-							WaveType(p->CoefHandle) != NT_FP32)){
+				WaveType(p->XWaveHandle) != NT_FP64)){
 		SetNaN64(&p->result);
-		err = REQUIRES_SP_OR_DP_WAVE;
+		err = REQUIRES_DP_WAVE;
 		goto done;
 	}
 	
@@ -249,11 +246,12 @@ smearedAbelesAll(SmearedParamsAllPtr p){
 		err = NON_EXISTENT_WAVE;
 		goto done;
 	}
-	if (!(WaveType(p->CoefHandle) != NT_FP64 || WaveType(p->YWaveHandle) != NT_FP64 || WaveType(p->XWaveHandle) != NT_FP64
-		  || WaveType(p->XWaveHandle) != NT_FP32 || WaveType(p->YWaveHandle) != NT_FP32 || WaveType(p->CoefHandle) != NT_FP32
-		  || WaveType(p->dXWaveHandle) != NT_FP32 || WaveType(p->dXWaveHandle) != NT_FP64)){
+	if (!(WaveType(p->CoefHandle) != NT_FP64 ||
+		  WaveType(p->YWaveHandle) != NT_FP64 ||
+		   WaveType(p->XWaveHandle) != NT_FP64 ||
+			WaveType(p->dXWaveHandle) != NT_FP64)){
 		SetNaN64(&p->result);
-		err = REQUIRES_SP_OR_DP_WAVE;
+		err = REQUIRES_DP_WAVE;
 		goto done;
 	}
 	
@@ -348,10 +346,11 @@ Abeles_imagAll(FitParamsAllPtr p)
 		err = NON_EXISTENT_WAVE;
 		goto done;
 	}
-	if (!(WaveType(p->CoefHandle) != NT_FP64 || WaveType(p->YWaveHandle) != NT_FP64 || WaveType(p->XWaveHandle) != NT_FP64
-		  || WaveType(p->XWaveHandle) != NT_FP32 || WaveType(p->YWaveHandle) != NT_FP32 || WaveType(p->CoefHandle) != NT_FP32)){
+	if (!(WaveType(p->CoefHandle) != NT_FP64 ||
+		   WaveType(p->YWaveHandle) != NT_FP64 ||
+		    WaveType(p->XWaveHandle) != NT_FP64)){
 		SetNaN64(&p->result);
-		err = REQUIRES_SP_OR_DP_WAVE;
+		err = REQUIRES_DP_WAVE;
 		goto done;
 	}
 	
@@ -472,6 +471,13 @@ Abeles(FitParamsPtr p){
 		goto done;
 	}
 	
+	if(WaveType(p->waveHandle) != NT_FP64){
+		err = REQUIRES_DP_WAVE;
+		SetNaN64(&p->result);
+		goto done;
+	}
+		
+	
 	np= WavePoints(p->waveHandle);
 	
 	x= p->x;
@@ -501,6 +507,12 @@ Abeles_imag(FitParamsPtr p){
 	if (p->waveHandle == NULL){
 		SetNaN64(&p->result);
 		err = NON_EXISTENT_WAVE;
+		goto done;
+	}
+	
+	if(WaveType(p->waveHandle) != NT_FP64){
+		err = REQUIRES_DP_WAVE;
+		SetNaN64(&p->result);
 		goto done;
 	}
 	
@@ -573,13 +585,10 @@ parrattReflectance(FitParamsAllPtr p){
 	}
 	//check that all the supplied waves have the correct numerical type.
 	if (!(WaveType(p->CoefHandle) != NT_FP64 ||
-		  WaveType(p->YWaveHandle) != NT_FP64 ||
-		  WaveType(p->XWaveHandle) != NT_FP64 ||
-		  WaveType(p->XWaveHandle) != NT_FP32 || 
-		  WaveType(p->YWaveHandle) != NT_FP32 ||
-		  WaveType(p->CoefHandle) != NT_FP32)){
+		   WaveType(p->YWaveHandle) != NT_FP64 ||
+		    WaveType(p->XWaveHandle) != NT_FP64)){
 		SetNaN64(&p->result);
-		err = REQUIRES_SP_OR_DP_WAVE;
+		err = REQUIRES_DP_WAVE;
 		goto done;
 	}
 	
