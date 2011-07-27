@@ -9,7 +9,7 @@
 	void *AbelesThreadWorker(void *arg);
 	void *AbelesImagThreadWorker(void *arg);
 	void *realReflectanceThreadWorker(void *arg);
-//	using namespace std;
+//	using namespace std
 
 
 int ParrattCalcAll(const double *coefP, double *yP, const double *xP,long npoints);

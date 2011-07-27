@@ -197,10 +197,10 @@ int realReflectance(const double *coefP, double *yP, const double *xP,long npoin
 	//fillout all the SLD's for all the layers
 	for(ii = 1 ; ii < nlayers+1 ; ii += 1){
 		numtemp = 1.e-6 * ((100. - coefP[4*ii+4])/100.) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1.e-6)/100.;		//sld of the layer
-		*(SLDmatrix+ii) = 4 * M_PI * (numtemp  - (coefP[2] * 1e-6));		
+		*(SLDmatrix+ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));		
 	}
 	*(SLDmatrix) = 0;
-	*(SLDmatrix+nlayers+1) = 4 * M_PI * ((coefP[3] * 1e-6) - (coefP[2] * 1e-6));
+	*(SLDmatrix+nlayers+1) = 4 * PI * ((coefP[3] * 1e-6) - (coefP[2] * 1e-6));
 	
 	for (j = 0; j < npoints ; j+=1) {
 		//intialise the matrices
