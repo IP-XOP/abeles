@@ -65,169 +65,6 @@ typedef struct SmearedParamsAll {
  */
 int NUM_CPUS = 1;
 
-/*
- An all at once fit function.  You send all the Qvalues and a model wave, and get all the reflectivity values back.
- */
-int
-AbelesAll(FitParamsAllPtr p){
-	//number of coefficients, number of Q points
-	long ncoefs,npoints;
-	
-	//temporary places for calculation
-	double realVal,imagVal;
-	
-	//how many layers you have
-	long nlayers;
-	
-	//how many layers in multilayer (if you have one)
-	long Vmullayers=-1;
-	//where in the normal model the multilayer gets appended to
-	long Vappendlayer=0;
-	//how many times the multilayer repeats
-	long Vmulrep=0;
-	
-	//the return code of the function
-	long err=0;
-	//a variable for iterating for loops
-	long ii;
-	
-	//we will extract values from the supplied waves and store them as double arrays
-	//these pointers refer to the values extracted.
-	double *coefP = NULL;
-	double *xP = NULL;
-	double *yP = NULL;
-	
-	//variables for the threadwise calculation of the reflectivity
-	extern int NUM_CPUS;
-	int threadsToCreate = 1;
-	float isItWorthThreading = 0;
-	pthread_t *threads = NULL;
-	refCalcParm *arg = NULL;
-	long pointsEachThread = 0;
-	long pointsRemaining = 0;
-	long pointsConsumed = 0;
-	
-	//have to check that all the supplied wave references exist
-	if (p->CoefHandle == NULL ||
-			p->YWaveHandle == NULL ||
-				p->XWaveHandle == NULL ){
-		SetNaN64(&p->result);
-		err = NON_EXISTENT_WAVE;
-		goto done;
-	}
-	//check that all the supplied waves have the correct numerical type.
-	if (WaveType(p->CoefHandle) != NT_FP64 ||
-			WaveType(p->YWaveHandle) != NT_FP64 ||
-				WaveType(p->XWaveHandle) != NT_FP64){
-		SetNaN64(&p->result);
-		err = REQUIRES_DP_WAVE;
-		goto done;
-	}
-	
-	ncoefs= WavePoints(p->CoefHandle);
-	npoints = WavePoints(p->YWaveHandle);
-	if (npoints != WavePoints(p->XWaveHandle)){
-		SetNaN64(&p->result);
-		err = WAVES_NOT_SAME_LENGTH;
-		goto done;
-	}
-	
-	coefP = (double*) WaveData(p->CoefHandle);
-	xP = (double*) WaveData(p->XWaveHandle);
-	yP = (double*) WaveData(p->YWaveHandle);
-
-		//the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
-	//if not, the coefficient wave is wrong.
-	nlayers = (long)coefP[0];
-	if(ncoefs != 4 * nlayers + 6){
-		//this may meanthere is a multilayer model specified
-		if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1)
-			Vmullayers=0;
-		else
-			Vmullayers=(long)realVal;
-		
-		if(ncoefs != (4 * nlayers + 6) + 4 * Vmullayers){
-			err = INCORRECT_INPUT;
-			goto done;
-		}
-
-		if(FetchNumVar("Vappendlayer", &realVal, &imagVal) == -1)
-			Vappendlayer = 0;
-		else
-			Vappendlayer=(long)realVal;
-		
-		if(FetchNumVar("Vmulrep", &realVal, &imagVal) == -1)
-			Vmulrep=0;
-		else
-			Vmulrep=(long)realVal;
-	};
-	
-	//this relationship was worked out for a dualcore machine.
-	//I worked out how long it took for a certain number of points and a certain number of layers
-	//then I calculated the cross over for when it was worth threading, rather than not.
-	//i.e. for a given number of layers, how many points were required for multithreading to be worthwhile.
-	//I plotted the number of points (y) vs the number of layers (x), giving the following relationship.
-	isItWorthThreading = 3.382 + 641. *pow(coefP[0], -0.73547);
-	if((float) npoints < isItWorthThreading)
-		threadsToCreate = 1;
-	else
-		threadsToCreate = NUM_CPUS;
-	
-	//create threads for the calculation
-	threads = (pthread_t *) malloc((threadsToCreate - 1) * sizeof(pthread_t));
-	if(!threads && NUM_CPUS > 1){
-		err = NOMEM;
-		goto done;
-	}
-	//create arguments to be supplied to each of the threads
-	arg = (refCalcParm *) malloc (sizeof(refCalcParm)*(threadsToCreate - 1));
-	if(!arg && NUM_CPUS > 1){
-		err = NOMEM;
-		goto done;
-	}
-
-	//need to calculated how many points are given to each thread.
-	pointsEachThread = floorl(npoints / threadsToCreate);
-	pointsRemaining = npoints;
-	
-	//if you have two CPU's, only create one extra thread because the main thread does half the work
-	for (ii = 0; ii < threadsToCreate - 1; ii++){
-		arg[ii].coefP = coefP;
-		arg[ii].npoints = pointsEachThread;
-		
-		arg[ii].Vmullayers = Vmullayers;
-		arg[ii].Vappendlayer = Vappendlayer;
-		arg[ii].Vmulrep = Vmulrep;
-		
-		//the following two lines specify where the Q values and R values will be sourced/written.
-		//i.e. an offset of the original array.
-		arg[ii].xP = xP+pointsConsumed;
-		arg[ii].yP = yP+pointsConsumed;
-		
-		pthread_create(&threads[ii], NULL, AbelesThreadWorker, (void *)(arg + ii));
-		pointsRemaining -= pointsEachThread;
-		pointsConsumed += pointsEachThread;
-	}
-	
-	//do the remaining points in the main thread.
-	if(err = AbelesCalcAll(coefP, yP + pointsConsumed, xP + pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
-		goto done;
-	
-	for (ii = 0; ii < threadsToCreate - 1 ; ii++)
-		pthread_join(threads[ii], NULL);
-	
-	WaveHandleModified(p->YWaveHandle);
-	p->result = 0;		// not actually used by FuncFit
-	
-done:
-	//now have to free the thread memory and argument memory
-	if(threads)
-		free(threads);
-	if(arg)
-		free(arg);
-	
-	return err;	
-}
 
 int
 smearedAbelesAll(SmearedParamsAllPtr p){
@@ -320,35 +157,84 @@ done:
 	return err;	
 }
 
-int
-Abeles_imagAll(FitParamsAllPtr p)
-{
+
+void getMultiLayerParams(long *Vmullayers, long *Vappendlayer, long *Vmulrep){
+	//temporary places for calculation
+	double realVal, imagVal;
+	
+	//this may meanthere is a multilayer model specified
+	if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1)
+		*Vmullayers = 0;
+	else
+		*Vmullayers=(long)realVal;
+	
+	if(FetchNumVar("Vappendlayer", &realVal, &imagVal) == -1)
+		*Vappendlayer = 0;
+	else
+		*Vappendlayer=(long)realVal;
+	
+	if(FetchNumVar("Vmulrep", &realVal, &imagVal) == -1)
+		*Vmulrep=0;
+	else
+		*Vmulrep=(long)realVal;
+	
+}
+
+/*mode:
+0 = AbelesAll
+1 = Abeles_imagAll
+2 = Abeles_BmagAll
+ */
+ 
+int AbelesAllWrapper(FitParamsAllPtr p, int mode){
+	int err = 0;
+
+	//number of coefficients, number of Q points
 	long ncoefs,npoints;
+	
+	//how many layers you have
+	long nlayers;
+	
+	//how many layers in multilayer (if you have one)
+	long Vmullayers=-1;
+	//where in the normal model the multilayer gets appended to
+	long Vappendlayer=0;
+	//how many times the multilayer repeats
+	long Vmulrep=0;
+	
+	//a variable for iterating for loops
+	long ii;
+	
+	//we will extract values from the supplied waves and store them as double arrays
+	//these pointers refer to the values extracted.
 	double *coefP = NULL;
 	double *xP = NULL;
 	double *yP = NULL;
 	
-	long nlayers, Vmullayers=-1, Vappendlayer=0, Vmulrep=0, err=0, ii;
-	double realVal,imagVal;
-	
+	//variables for the threadwise calculation of the reflectivity
 	extern int NUM_CPUS;
 	int threadsToCreate = 1;
 	float isItWorthThreading = 0;
-	pthread_t *threads;
-	refCalcParm *arg;
+	pthread_t *threads = NULL;
+	refCalcParm *arg = NULL;
 	long pointsEachThread = 0;
 	long pointsRemaining = 0;
 	long pointsConsumed = 0;
-
 	
+	//the functions that will do the calculation
+	void* (*threadWorkerFunc)(void*);
+	int (*calcAllFunc)(const double *, double *, const double *,long, int, int, int);
+	
+	
+	//stuff starts here
 	if (p->CoefHandle == NIL ||	p->YWaveHandle == NIL || p->XWaveHandle == NIL ){
 		SetNaN64(&p->result);
 		err = NON_EXISTENT_WAVE;
 		goto done;
 	}
 	if (WaveType(p->CoefHandle) != NT_FP64 ||
-		   WaveType(p->YWaveHandle) != NT_FP64 ||
-		    WaveType(p->XWaveHandle) != NT_FP64){
+		WaveType(p->YWaveHandle) != NT_FP64 ||
+		WaveType(p->XWaveHandle) != NT_FP64){
 		SetNaN64(&p->result);
 		err = REQUIRES_DP_WAVE;
 		goto done;
@@ -369,29 +255,43 @@ Abeles_imagAll(FitParamsAllPtr p)
 	//the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
 	//if not, the coefficient wave is wrong.
 	nlayers = (long)coefP[0];
-	if(ncoefs != 4 * nlayers + 8){
-		//this may meanthere is a multilayer model specified
-		if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1)
-			Vmullayers=0;
-		else
-			Vmullayers=(long)realVal;
-		
-		if(ncoefs != (4 * nlayers + 8) + 4 * Vmullayers){
-			err = INCORRECT_INPUT;
-			goto done;
-		}
-		
-		if(FetchNumVar("Vappendlayer", &realVal, &imagVal) == -1)
-			Vappendlayer = 0;
-		else
-			Vappendlayer=(long)realVal;
-		
-		if(FetchNumVar("Vmulrep", &realVal, &imagVal) == -1)
-			Vmulrep=0;
-		else
-			Vmulrep=(long)realVal;
-	};
 	
+	switch (mode) {
+		case 0:
+			threadWorkerFunc = &AbelesThreadWorker;
+			calcAllFunc = &AbelesCalcAll;
+
+			if(ncoefs != 4 * nlayers + 6){				
+				//this may meanthere is a multilayer model specified
+				getMultiLayerParams(&Vmullayers, &Vappendlayer, &Vmulrep);
+				
+				if(ncoefs != (4 * nlayers + 6) + 4 * Vmullayers){
+					err = INCORRECT_INPUT;
+					goto done;
+				}
+				
+			};
+			
+			break;
+		case 1:
+			threadWorkerFunc = &AbelesImagThreadWorker;
+			calcAllFunc = &AbelesCalc_ImagAll;
+			
+			if(ncoefs != 4 * nlayers + 8){
+				//this may meanthere is a multilayer model specified
+				getMultiLayerParams(&Vmullayers, &Vappendlayer, &Vmulrep);
+				
+				if(ncoefs != (4 * nlayers + 8) + 4 * Vmullayers){
+					err = INCORRECT_INPUT;
+					goto done;
+				}				
+			};
+			
+			break;
+		default:
+			break;
+	}
+		
 	//this relationship was worked out for a dualcore machine.
 	//I worked out how long it took for a certain number of points and a certain number of layers
 	//then I calculated the cross over for when it was worth threading, rather than not.
@@ -434,18 +334,18 @@ Abeles_imagAll(FitParamsAllPtr p)
 		arg[ii].xP = xP + pointsConsumed;
 		arg[ii].yP = yP + pointsConsumed;
 		
-		pthread_create(&threads[ii], NULL, AbelesImagThreadWorker, (void *)(arg+ii));
+		pthread_create(&threads[ii], NULL, threadWorkerFunc, (void *)(arg+ii));
 		pointsRemaining -= pointsEachThread;
 		pointsConsumed += pointsEachThread;
 	}
 	
 	//do the remaining points in the main thread.
-	if(err = AbelesCalc_ImagAll(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
+	if(err = calcAllFunc(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
 		goto done;
-		
+	
 	for (ii = 0; ii < threadsToCreate - 1 ; ii++)
 		pthread_join(threads[ii], NULL);
-		
+	
 	WaveHandleModified(p->YWaveHandle);
 	p->result = 0;		// not actually used by FuncFit
 	
@@ -456,6 +356,20 @@ done:
 		free(arg);
 	
 	return err;		
+		
+}
+
+/*
+ An all at once fit function.  You send all the Qvalues and a model wave, and get all the reflectivity values back.
+ */
+int
+AbelesAll(FitParamsAllPtr p){
+	return AbelesAllWrapper(p, 0);
+}
+
+int
+Abeles_imagAll(FitParamsAllPtr p){
+	return AbelesAllWrapper(p, 1);
 }
 
 int
