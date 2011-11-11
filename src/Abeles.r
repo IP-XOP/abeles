@@ -93,6 +93,13 @@ resource 'XOPF' (1100) {
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (y wave).
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (x wave).
 		},
-
+		"Abeles_bmagAll",					// Function name.
+		F_EXP | F_EXTERNAL,				// Function category,
+		NT_FP64,						// Return value type.
+		{
+			NT_FP64 + WAVE_TYPE,		// Double precision wave (coefficient wave).
+			NT_FP64 + WAVE_TYPE,		// Double precision wave (y wave).
+			NT_FP64 + WAVE_TYPE,		// Double precision wave (x wave).
+		},
 	}
 };

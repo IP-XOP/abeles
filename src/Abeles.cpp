@@ -180,6 +180,223 @@ void getMultiLayerParams(long *Vmullayers, long *Vappendlayer, long *Vmulrep){
 	
 }
 
+int Abeles_bmagAll(FitParamsAllPtr p){
+	int err = 0;
+	
+	//number of coefficients, number of Q points
+	long ncoefs,npoints;
+	
+	//how many layers you have
+	long nlayers;
+	
+	//how many layers in multilayer (if you have one)
+	long Vmullayers=-1;
+	//where in the normal model the multilayer gets appended to
+	long Vappendlayer=0;
+	//how many times the multilayer repeats
+	long Vmulrep=0;
+	
+	//a variable for iterating for loops
+	long ii;
+	long threadUsed;
+	
+	//we will extract values from the supplied waves and store them as double arrays
+	//these pointers refer to the values extracted.
+	double *coefP = NULL;
+	double *xP = NULL;
+	double *yP = NULL;
+
+	double *tempYPplusplus = NULL;
+	double *tempYPminusminus = NULL;
+	double *coefPplusplus = NULL;
+	double *coefPminusminus = NULL;
+	
+	
+	//variables for the threadwise calculation of the reflectivity
+	extern int NUM_CPUS;
+	int threadsToCreate = 1;
+	pthread_t *threads = NULL;
+	refCalcParm *arg = NULL;
+	long pointsEachThread = 0;
+	long pointsRemaining = 0;
+	long pointsConsumed = 0;
+	
+	//stuff starts here
+	if (p->CoefHandle == NIL ||	p->YWaveHandle == NIL || p->XWaveHandle == NIL ){
+		SetNaN64(&p->result);
+		err = NON_EXISTENT_WAVE;
+		goto done;
+	}
+	if (WaveType(p->CoefHandle) != NT_FP64 ||
+		WaveType(p->YWaveHandle) != (NT_FP64 | NT_CMPLX) ||
+		WaveType(p->XWaveHandle) != NT_FP64){
+		SetNaN64(&p->result);
+		err = REQUIRES_DP_WAVE;
+		goto done;
+	}
+	
+	ncoefs = WavePoints(p->CoefHandle);
+	npoints = WavePoints(p->YWaveHandle);
+	if (npoints != WavePoints(p->XWaveHandle)){
+		SetNaN64(&p->result);
+		err = WAVES_NOT_SAME_LENGTH;
+		goto done;
+	}
+	
+	coefP = (double*) WaveData(p->CoefHandle);
+	yP = (double*) WaveData(p->YWaveHandle);
+	xP = (double*) WaveData(p->XWaveHandle);
+		
+	//the number of layers should relate to the size of the coefficient wave (4*N+8 + 4*Vmullayers)
+	//if not, the coefficient wave is wrong.
+	nlayers = (long)coefP[0];
+	
+	if(ncoefs != 4 * nlayers + 8){
+		//this may meanthere is a multilayer model specified
+		getMultiLayerParams(&Vmullayers, &Vappendlayer, &Vmulrep);
+				
+		if(ncoefs != (4 * nlayers + 8) + 4 * Vmullayers){
+			err = INCORRECT_INPUT;
+			goto done;
+		}				
+	};
+	
+	try{
+		coefPplusplus = new double[ncoefs - 2];
+		coefPminusminus = new double[ncoefs -2];
+		tempYPplusplus = new double[npoints];
+		tempYPminusminus = new double[npoints];
+	} catch (...){
+		err = NOMEM;
+		goto done;
+	}
+	
+	coefPplusplus[0] = nlayers;
+	coefPplusplus[1] = coefP[1];
+	coefPplusplus[2] = coefP[2] + coefP[3];
+	coefPplusplus[3] = coefP[4] + coefP[5];
+	coefPplusplus[4] = coefP[6];
+	coefPplusplus[5] = coefP[7];
+	
+	coefPminusminus[0] = nlayers;
+	coefPminusminus[1] = coefP[1];
+	coefPminusminus[2] = coefP[2] - coefP[3];
+	coefPminusminus[3] = coefP[4] - coefP[5];
+	coefPminusminus[4] = coefP[6];
+	coefPminusminus[5] = coefP[7];
+	
+	for(ii = 0 ; ii < nlayers ; ii += 1){
+		coefPplusplus[4 * ii + 6] = coefP[4 * ii + 8];
+		coefPplusplus[4 * ii + 7] = coefP[4 * ii + 9] + coefP[4 * ii + 10];
+		coefPplusplus[4 * ii + 8] = 0;
+		coefPplusplus[4 * ii + 9] = coefP[4 * ii + 11];
+
+		coefPminusminus[4 * ii + 6] = coefP[4 * ii + 8];
+		coefPminusminus[4 * ii + 7] = coefP[4 * ii + 9] - coefP[4 * ii + 10];
+		coefPminusminus[4 * ii + 8] = 0;
+		coefPminusminus[4 * ii + 9] = coefP[4 * ii + 11];
+	}
+	
+	threadsToCreate = NUM_CPUS;
+	
+	//create threads for the calculation
+	threads = (pthread_t *) malloc((threadsToCreate) * sizeof(pthread_t));
+	if(!threads){
+		err = NOMEM;
+		goto done;
+	}
+	
+	//create arguments to be supplied to each of the threads
+	arg = (refCalcParm *) malloc (sizeof(refCalcParm) * (threadsToCreate));
+	if(!arg){
+		err = NOMEM;
+		goto done;
+	}
+	
+	//need to calculated how many points are given to each thread.
+	pointsEachThread = floorl(npoints / (threadsToCreate / 2L));
+	pointsRemaining = npoints;
+	pointsConsumed = 0;
+	threadUsed = 0;
+	
+	for (ii = 0; ii < (long)(threadsToCreate / 2L); ii++){
+		if(ii == (long)(threadsToCreate / 2L) - 1)
+		   pointsEachThread = pointsRemaining;
+		   
+		arg[threadUsed].coefP = coefPplusplus;
+		arg[threadUsed].npoints = pointsEachThread;
+		
+		arg[threadUsed].Vmullayers = Vmullayers;
+		arg[threadUsed].Vappendlayer = Vappendlayer;
+		arg[threadUsed].Vmulrep = Vmulrep;
+		
+		//the following two lines specify where the Q values and R values will be sourced/written.
+		//i.e. an offset of the original array.
+		arg[threadUsed].xP = xP + pointsConsumed;
+		arg[threadUsed].yP = tempYPplusplus + pointsConsumed;
+		
+		pthread_create(&threads[threadUsed], NULL, AbelesThreadWorker, (void *)(arg+threadUsed));
+		pointsRemaining -= pointsEachThread;
+		pointsConsumed += pointsEachThread;
+		threadUsed += 1;
+	}
+
+	//need to calculated how many points are given to each thread.
+   pointsEachThread = floorl(npoints / (threadsToCreate / 2L));
+   pointsRemaining = npoints;
+   pointsConsumed = 0;
+   
+   for (ii = 0; ii < (long)(threadsToCreate / 2L); ii++){
+	   if(ii == (long)(threadsToCreate / 2L) - 1)
+		  pointsEachThread = pointsRemaining;
+		  
+		  arg[threadUsed].coefP = coefPminusminus;
+		  arg[threadUsed].npoints = pointsEachThread;
+		  
+		  arg[threadUsed].Vmullayers = Vmullayers;
+		  arg[threadUsed].Vappendlayer = Vappendlayer;
+		  arg[threadUsed].Vmulrep = Vmulrep;
+		  
+		  //the following two lines specify where the Q values and R values will be sourced/written.
+		  //i.e. an offset of the original array.
+		  arg[threadUsed].xP = xP + pointsConsumed;
+		  arg[threadUsed].yP = tempYPminusminus + pointsConsumed;
+		  
+		  pthread_create(&threads[threadUsed], NULL, AbelesThreadWorker, (void *)(arg+threadUsed));
+		  pointsRemaining -= pointsEachThread;
+		  pointsConsumed += pointsEachThread;
+		  threadUsed += 1;
+	}
+				  
+	for (ii = 0; ii < threadsToCreate; ii++)
+		pthread_join(threads[ii], NULL);
+
+	for(ii = 0 ; ii < npoints ; ii += 1){
+		yP[2 * ii] = tempYPplusplus[ii]; 
+		yP[2 * ii + 1] = tempYPminusminus[ii]; 
+	}
+
+	WaveHandleModified(p->YWaveHandle);
+	p->result = 0;		// not actually used by FuncFit
+	
+done:
+	if(tempYPplusplus)
+		delete [] tempYPplusplus;
+	if(tempYPminusminus)
+		delete [] tempYPminusminus;
+	if(coefPminusminus)
+		delete [] coefPminusminus;
+	if(coefPplusplus)
+		delete [] coefPplusplus;
+	
+	if(threads)
+		free(threads);
+	if(arg)
+		free(arg);
+	
+	return err;			
+}
+
 /*mode:
 0 = AbelesAll
 1 = Abeles_imagAll
@@ -659,6 +876,8 @@ RegisterFunction()
 		case 5:
 			return((long)parrattReflectance);
 			break;
+		case 6:
+			return((long)Abeles_bmagAll);
 	}
 	return NIL;
 }

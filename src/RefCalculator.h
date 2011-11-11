@@ -29,11 +29,11 @@ typedef struct{
 	//how many repeats in the multilayer
 	int Vmulrep;
 	//a double array containing the model coefficients (assumed to be correct)
-	double *coefP;
+	const double *coefP;
 	//the Reflectivity values to return
 	double *yP;
 	//the Q values to do the calculation for.
-	double *xP;	
+	const double *xP;	
 }  refCalcParm;
 
 #define PI 3.141592653589793
