@@ -69,7 +69,7 @@ typedef struct SmearedParamsAll {
 int NUM_CPUS = 1;
 
 
-int
+extern "C" int
 smearedAbelesAll(SmearedParamsAllPtr p){
 	CountInt ncoefs, npoints;
 	double realVal, imagVal;
@@ -183,6 +183,7 @@ void getMultiLayerParams(long *Vmullayers, long *Vappendlayer, long *Vmulrep){
 	
 }
 
+extern "C"
 int Abeles_bmagAll(FitParamsAllPtr p){
 	int err = 0;
 	
@@ -586,17 +587,17 @@ done:
 /*
  An all at once fit function.  You send all the Qvalues and a model wave, and get all the reflectivity values back.
  */
-int
+extern "C" int
 AbelesAll(FitParamsAllPtr p){
 	return AbelesAllWrapper(p, 0);
 }
 
-int
+extern "C" int
 Abeles_imagAll(FitParamsAllPtr p){
 	return AbelesAllWrapper(p, 1);
 }
 
-int
+extern "C" int
 Abeles(FitParamsPtr p){
 	int np, err = 0;
 	double *Abelesparams = NULL;
@@ -639,7 +640,7 @@ done:
 	return err;
 }
 
-int
+extern "C" int
 Abeles_imag(FitParamsPtr p){
 	int np, err = 0;
 	double *Abelesparams = NULL;
@@ -683,7 +684,7 @@ done:
 	return err;
 }
 
-int
+extern "C" int
 parrattReflectance(FitParamsAllPtr p){
 	//number of coefficients, number of Q points
 	long ncoefs,npoints;
@@ -904,7 +905,7 @@ RegisterFunction()
  This is the entry point from the host application to the XOP for all
  messages after the INIT message.
  */
-static void
+extern "C" void
 XOPEntry(void)
 {	
 	XOPIORecResult result = 0;
