@@ -10,17 +10,14 @@
 
 using namespace MyComplexNumber;
 // Prototypes
-#ifdef _MACINTOSH_
+#ifdef MACIGOR
 using namespace std;
 #include <sys/sysctl.h>
-HOST_IMPORT int main(IORecHandle ioRecHandle);
 #endif	
-#ifdef _WINDOWS
-HOST_IMPORT void main(IORecHandle ioRecHandle);
-#endif
 
+HOST_IMPORT int main(IORecHandle ioRecHandle);
 // Custom error codes
-#define REQUIRES_IGOR_400 1 + FIRST_XOP_ERR
+#define REQUIRES_IGOR_600 1 + FIRST_XOP_ERR
 #define NON_EXISTENT_WAVE 2 + FIRST_XOP_ERR
 #define REQUIRES_SP_OR_DP_WAVE 3 + FIRST_XOP_ERR
 #define INCORRECT_INPUT 4 + FIRST_XOP_ERR
