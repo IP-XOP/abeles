@@ -11,11 +11,11 @@
 #include "MyComplex.h"
 #include "Abeles.h"
 
-#ifdef _MACINTOSH_
+#ifdef MACIGOR
 	#include <pthread.h>
 #endif
 
-#ifdef _WINDOWS_
+#ifdef WINIGOR
 #include "pthread.h"
 #include "sched.h"
 #include "semaphore.h"

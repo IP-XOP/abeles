@@ -9,10 +9,10 @@ calculates specular reflectivity as a function of Q momentum transfer.
 #include "RefCalculator.h"
 
 //we can do the calculation multithreaded, it should be faster.
-#ifdef _MACINTOSH_
+#ifdef MACIGOR
 #include <pthread.h>
 #endif
-#ifdef _WINDOWS_
+#ifdef WINIGOR
 #include "pthread.h"
 #include "sched.h"
 #include "semaphore.h"
@@ -27,6 +27,7 @@ a single reflectivity value
 typedef struct FitParams {
 	double x;				// Independent variable.
 	waveHndl waveHandle;	// Coefficient wave.
+	UserFunctionThreadInfoPtr tp;
 	double result;
 } FitParams, *FitParamsPtr;
 
@@ -39,7 +40,8 @@ typedef struct FitParamsAll {
 	waveHndl XWaveHandle;	// X wave (input).
 	waveHndl YWaveHandle;	// Y wave (output).
 	waveHndl CoefHandle;	// Coefficient wave.
-	DOUBLE result;			// not actually used.
+	UserFunctionThreadInfoPtr tp;
+	double result;			// not actually used.
 }FitParamsAll, *FitParamsAllPtr;
 
 /*
@@ -53,7 +55,8 @@ typedef struct SmearedParamsAll {
 	waveHndl XWaveHandle;	// Q wave (input).
 	waveHndl YWaveHandle;	// R wave (output).
 	waveHndl CoefHandle;	// Coefficient wave.
-	DOUBLE result;			// not actually used.
+	UserFunctionThreadInfoPtr tp;
+	double result;			// not actually used.
 }SmearedParamsAll, *SmearedParamsAllPtr;
 
 #pragma pack()	// All structures passed to Igor are two-byte aligned.
@@ -68,9 +71,9 @@ int NUM_CPUS = 1;
 
 int
 smearedAbelesAll(SmearedParamsAllPtr p){
-	long ncoefs,npoints;
-	double realVal,imagVal;
-	int nlayers,Vmullayers=-1, err=0;
+	CountInt ncoefs, npoints;
+	double realVal, imagVal;
+	int nlayers, Vmullayers=-1, err=0;
 	double *coefP = NULL;
 	double *xP = NULL;
 	double *yP = NULL;
@@ -136,9 +139,9 @@ smearedAbelesAll(SmearedParamsAllPtr p){
 		goto done;
 	};
 	
-	if(err = smearedAbelescalcAll(coefP,yP,xP,dxP,npoints))
+	if(err = smearedAbelescalcAll(coefP, yP, xP, dxP, (long) npoints))
 		goto done;
-	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle,yP))
+	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle, yP))
 		goto done;
 	
 	WaveHandleModified(p->YWaveHandle);
@@ -184,7 +187,7 @@ int Abeles_bmagAll(FitParamsAllPtr p){
 	int err = 0;
 	
 	//number of coefficients, number of Q points
-	long ncoefs,npoints;
+	CountInt ncoefs,npoints;
 	
 	//how many layers you have
 	long nlayers;
@@ -324,7 +327,7 @@ int Abeles_bmagAll(FitParamsAllPtr p){
 		   pointsEachThread = pointsRemaining;
 		   
 		arg[threadUsed].coefP = coefPplusplus;
-		arg[threadUsed].npoints = pointsEachThread;
+		arg[threadUsed].npoints = (long) pointsEachThread;
 		
 		arg[threadUsed].Vmullayers = Vmullayers;
 		arg[threadUsed].Vappendlayer = Vappendlayer;
@@ -335,7 +338,7 @@ int Abeles_bmagAll(FitParamsAllPtr p){
 		arg[threadUsed].xP = xP + pointsConsumed;
 		arg[threadUsed].yP = tempYPplusplus + pointsConsumed;
 		
-		pthread_create(&threads[threadUsed], NULL, AbelesThreadWorker, (void *)(arg+threadUsed));
+		pthread_create(&threads[threadUsed], NULL, AbelesThreadWorker, (void *)(arg + threadUsed));
 		pointsRemaining -= pointsEachThread;
 		pointsConsumed += pointsEachThread;
 		threadUsed += 1;
@@ -351,7 +354,7 @@ int Abeles_bmagAll(FitParamsAllPtr p){
 		  pointsEachThread = pointsRemaining;
 		  
 		  arg[threadUsed].coefP = coefPminusminus;
-		  arg[threadUsed].npoints = pointsEachThread;
+		  arg[threadUsed].npoints = (long) pointsEachThread;
 		  
 		  arg[threadUsed].Vmullayers = Vmullayers;
 		  arg[threadUsed].Vappendlayer = Vappendlayer;
@@ -362,7 +365,7 @@ int Abeles_bmagAll(FitParamsAllPtr p){
 		  arg[threadUsed].xP = xP + pointsConsumed;
 		  arg[threadUsed].yP = tempYPminusminus + pointsConsumed;
 		  
-		  pthread_create(&threads[threadUsed], NULL, AbelesThreadWorker, (void *)(arg+threadUsed));
+		  pthread_create(&threads[threadUsed], NULL, AbelesThreadWorker, (void *)(arg + threadUsed));
 		  pointsRemaining -= pointsEachThread;
 		  pointsConsumed += pointsEachThread;
 		  threadUsed += 1;
@@ -407,7 +410,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	int err = 0;
 
 	//number of coefficients, number of Q points
-	long ncoefs,npoints;
+	CountInt ncoefs,npoints;
 	
 	//how many layers you have
 	long nlayers;
@@ -431,7 +434,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	//variables for the threadwise calculation of the reflectivity
 	extern int NUM_CPUS;
 	int threadsToCreate = 1;
-	float isItWorthThreading = 0;
+	double isItWorthThreading = 0;
 	pthread_t *threads = NULL;
 	refCalcParm *arg = NULL;
 	long pointsEachThread = 0;
@@ -442,7 +445,11 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	void* (*threadWorkerFunc)(void*);
 	int (*calcAllFunc)(const double *, double *, const double *,long, int, int, int);
 	
-	
+	//this is now threadsafe, check IGOR is >6.20
+	if (igorVersion < 620)
+		if (!RunningInMainThread())
+			return NOT_IN_THREADSAFE;
+		
 	//stuff starts here
 	if (p->CoefHandle == NIL ||	p->YWaveHandle == NIL || p->XWaveHandle == NIL ){
 		SetNaN64(&p->result);
@@ -515,7 +522,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	//i.e. for a given number of layers, how many points were required for multithreading to be worthwhile.
 	//I plotted the number of points (y) vs the number of layers (x), giving the following relationship.
 	isItWorthThreading = 3.382 + 641. *pow(coefP[0], -0.73547);
-	if((float) npoints < isItWorthThreading)
+	if((double) npoints < isItWorthThreading)
 		threadsToCreate = 1;
 	else
 		threadsToCreate = NUM_CPUS;
@@ -595,6 +602,11 @@ Abeles(FitParamsPtr p){
 	double *Abelesparams = NULL;
 	double x;
 	int Vmullayers = 0;
+
+	//this is now threadsafe, check IGOR is >6.20
+	if (igorVersion < 620)
+		if (!RunningInMainThread())
+			return NOT_IN_THREADSAFE;
 	
 	if (p->waveHandle == NULL){
 		SetNaN64(&p->result);
@@ -610,7 +622,7 @@ Abeles(FitParamsPtr p){
 			
 	np= WavePoints(p->waveHandle);
 	
-	x= p->x;
+	x = p->x;
 	Abelesparams = (double*) WaveData(p->waveHandle);
 
 	Vmullayers = ((np - 6) / 4) - (int) Abelesparams[0];
@@ -633,6 +645,11 @@ Abeles_imag(FitParamsPtr p){
 	double *Abelesparams = NULL;
 	double x,result;
 	int Vmullayers = 0;
+	
+	//this is now threadsafe, check IGOR is >6.20
+	if (igorVersion < 620)
+		if (!RunningInMainThread())
+			return NOT_IN_THREADSAFE;
 	
 	if (p->waveHandle == NULL){
 		SetNaN64(&p->result);
@@ -698,7 +715,7 @@ parrattReflectance(FitParamsAllPtr p){
 	//variables for the threadwise calculation of the reflectivity
 	extern int NUM_CPUS;
 	int threadsToCreate = 1;
-	float isItWorthThreading = 0;
+	double isItWorthThreading = 0;
 	pthread_t *threads = NULL;
 	refCalcParm *arg = NULL;
 	long pointsEachThread = 0;
@@ -778,7 +795,7 @@ parrattReflectance(FitParamsAllPtr p){
 	//i.e. for a given number of layers, how many points were required for multithreading to be worthwhile.
 	//I plotted the number of points (y) vs the number of layers (x), giving the following relationship.
 	isItWorthThreading = 3.382 + 641. *pow(coefP[0], -0.73547);
-	if((float) npoints < isItWorthThreading)
+	if((double) npoints < isItWorthThreading)
 		threadsToCreate = 1;
 	else
 		threadsToCreate = NUM_CPUS;
@@ -851,7 +868,7 @@ done:
 }
 
 
-static long
+static XOPIORecResult
 RegisterFunction()
 {
 	int funcIndex;
@@ -859,27 +876,27 @@ RegisterFunction()
 	funcIndex = GetXOPItem(0);			// Which function invoked ?
 	switch (funcIndex) {
 		case 0:							// y = Abeles(w,x) (curve fitting function).
-			return((long)Abeles);	// This function is called using the direct method.
+			return((XOPIORecResult)Abeles);	// This function is called using the direct method.
 			break;
 		case 1:
-			return((long)Abeles_imag);
+			return((XOPIORecResult)Abeles_imag);
 			break;
 		case 2:
-			return((long)AbelesAll);
+			return((XOPIORecResult)AbelesAll);
 			break;
 		case 3:
-			return((long)Abeles_imagAll);
+			return((XOPIORecResult)Abeles_imagAll);
 			break;
 		case 4:
-			return((long)smearedAbelesAll);
+			return((XOPIORecResult)smearedAbelesAll);
 			break;
 		case 5:
-			return((long)parrattReflectance);
+			return((XOPIORecResult)parrattReflectance);
 			break;
 		case 6:
-			return((long)Abeles_bmagAll);
+			return((XOPIORecResult)Abeles_bmagAll);
 	}
-	return NIL;
+	return 0;
 }
 
 /*	XOPEntry()
@@ -890,7 +907,7 @@ RegisterFunction()
 static void
 XOPEntry(void)
 {	
-	long result = 0;
+	XOPIORecResult result = 0;
 	
 	switch (GetXOPMessage()) {
 		case FUNCADDRS:
@@ -907,26 +924,20 @@ XOPEntry(void)
  main() does any necessary initialization and then sets the XOPEntry field of the
  ioRecHandle to the address to be called for future messages.
  */
-#ifdef _MACINTOSH_
-HOST_IMPORT int main(IORecHandle ioRecHandle)
-#endif	
-#ifdef _WINDOWS_
-HOST_IMPORT void main(IORecHandle ioRecHandle)
-#endif
-{	
+HOST_IMPORT int main(IORecHandle ioRecHandle){	
 	XOPInit(ioRecHandle);							// Do standard XOP initialization.
 	SetXOPEntry(XOPEntry);							// Set entry point for future calls.
 	
 	extern int NUM_CPUS;
 
 	//find out the number of CPU's.
-#ifdef _WINDOWS_
+#ifdef WINIGOR
     SYSTEM_INFO sysInfo;  
      GetSystemInfo(&sysInfo);  
     NUM_CPUS = sysInfo.dwNumberOfProcessors;  
 #endif
 	
-#ifdef _MACINTOSH_
+#ifdef MACIGOR
 	int mib[2];
 	size_t len;
 	
@@ -936,10 +947,13 @@ HOST_IMPORT void main(IORecHandle ioRecHandle)
 	sysctl(mib, 2, &NUM_CPUS, &len, NULL, 0);
 #endif
 	
-	if (igorVersion < 400)
-		SetXOPResult(REQUIRES_IGOR_400);
-	else
+	if (igorVersion < 600){
+		SetXOPResult(IGOR_OBSOLETE);
+		return EXIT_FAILURE;
+	}else{
 		SetXOPResult(0L);
+		return EXIT_SUCCESS;
+	}
 }
 
 
@@ -951,9 +965,9 @@ int
 Abelescalc(const double *coefP, double x, double *result){
 	int err = 0;
 	
-	int Vmulrep=0,Vmulappend=0,Vmullayers=0;
-	double realVal,imagVal;
-	register int ii=0,jj=0,kk=0;
+	int Vmulrep = 0,Vmulappend = 0, Vmullayers=0;
+	double realVal, imagVal;
+	register int ii=0, jj=0, kk=0;
 	
 	double scale,bkg,subrough;
 	double num=0,den=0, answer=0,qq;
@@ -1000,12 +1014,12 @@ Abelescalc(const double *coefP, double x, double *result){
 	*(SLDmatrix) = 0;
 	*(SLDmatrix+nlayers+1) = 4* PI * ((coefP[3]*1e-6) - (coefP[2]*1e-6));
 	
-	if(FetchNumVar("Vmullayers", &realVal, &imagVal)!=-1){ // Fetch value
-		Vmullayers=(int)realVal;
-		if(FetchNumVar("Vappendlayer", &realVal, &imagVal)!=-1)
-			Vmulappend=(int)realVal;
-		if(FetchNumVar("Vmulrep", &realVal, &imagVal) !=-1) // Fetch value
-			Vmulrep=(int)realVal;
+	if(FetchNumVar("Vmullayers", &realVal, &imagVal) != -1){ // Fetch value
+		Vmullayers = (int)realVal;
+		if(FetchNumVar("Vappendlayer", &realVal, &imagVal) != -1)
+			Vmulappend = (int)realVal;
+		if(FetchNumVar("Vmulrep", &realVal, &imagVal) != -1) // Fetch value
+			Vmulrep = (int)realVal;
 		
 		if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >= 0){
 			//set up an array for wavevectors
@@ -1017,7 +1031,7 @@ Abelescalc(const double *coefP, double x, double *result){
 				goto done;
 			}
 			memset(pj_mul, 0, sizeof(pj_mul));
-			for(ii=0; ii<Vmullayers;ii+=1){
+			for(ii = 0 ; ii < Vmullayers ; ii += 1){
 				numtemp = (coefP[3]*1e-6*coefP[(4*ii)+offset+2]/100) +(1e-6 * ((100 - coefP[(4*ii)+offset+2])/100) * coefP[(4*ii)+offset+1]);		//sld of the layer
 				*(SLDmatrixREP + ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));
 			}

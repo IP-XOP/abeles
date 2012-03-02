@@ -14,7 +14,7 @@ resource 'vers' (2) {						/* Igor version info */
 
 resource 'STR#' (1100) {					/* custom error messages */
 	{
-	"Abeles requires Igor Pro 4.0 or later.",
+	"Abeles requires Igor Pro 6.0 or later.",
 	"Wave does not exist",
 	"Coefficient wave must be single or double precision floating point",
 	"The coefficient wave has the wrong number of parameters. Wavelength = 4*w[0]+6+4*mullayers",
@@ -42,7 +42,7 @@ resource 'XOPI' (1100) {
 resource 'XOPF' (1100) {
 	{
 		"Abeles",					// Function name.
-		F_EXP | F_EXTERNAL,				// Function category,
+		F_EXP | F_THREADSAFE | F_EXTERNAL,				// Function category,
 		NT_FP64,
 		{						// Return value type.
 			NT_FP64 | WAVE_TYPE,		// Double precision wave (coefficient wave).
@@ -50,7 +50,7 @@ resource 'XOPF' (1100) {
 		},
 		
 		"Abeles_imag",					// Function name.
-		F_EXP | F_EXTERNAL,				// Function category,
+		F_EXP | F_THREADSAFE | F_EXTERNAL,				// Function category,
 		NT_FP64,	
 		{					// Return value type.
 			NT_FP64 | WAVE_TYPE,		// Double precision wave (coefficient wave).
@@ -58,7 +58,7 @@ resource 'XOPF' (1100) {
 		},
 			
 		"AbelesAll",					// Function name.
-		F_EXP | F_EXTERNAL,				// Function category,
+		F_EXP | F_THREADSAFE | F_EXTERNAL,				// Function category,
 		NT_FP64,						// Return value type.
 		{
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (coefficient wave).
@@ -67,7 +67,7 @@ resource 'XOPF' (1100) {
 		},
 		
 		"Abeles_imagAll",					// Function name.
-		F_EXP | F_EXTERNAL,				// Function category,
+		F_EXP | F_THREADSAFE | F_EXTERNAL,				// Function category,
 		NT_FP64,
 		{						// Return value type.
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (coefficient wave).
@@ -76,7 +76,7 @@ resource 'XOPF' (1100) {
 		},
 		
 		"smearedAbelesall",					// Function name.
-		F_EXP | F_EXTERNAL,				// Function category,
+		F_EXP | F_THREADSAFE | F_EXTERNAL,				// Function category,
 		NT_FP64,
 		{						// Return value type.
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (coefficient wave).
@@ -94,7 +94,7 @@ resource 'XOPF' (1100) {
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (x wave).
 		},
 		"Abeles_bmagAll",					// Function name.
-		F_EXP | F_EXTERNAL,				// Function category,
+		F_EXP | F_THREADSAFE | F_EXTERNAL,				// Function category,
 		NT_FP64,						// Return value type.
 		{
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (coefficient wave).
