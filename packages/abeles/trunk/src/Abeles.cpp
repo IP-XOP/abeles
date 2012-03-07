@@ -599,7 +599,8 @@ Abeles_imagAll(FitParamsAllPtr p){
 
 extern "C" int
 Abeles(FitParamsPtr p){
-	int np, err = 0;
+	int err = 0;
+	CountInt np = 0;
 	double *Abelesparams = NULL;
 	double x;
 	int Vmullayers = 0;
@@ -626,7 +627,7 @@ Abeles(FitParamsPtr p){
 	x = p->x;
 	Abelesparams = (double*) WaveData(p->waveHandle);
 
-	Vmullayers = ((np - 6) / 4) - (int) Abelesparams[0];
+	Vmullayers = (((int)np - 6) / 4) - (int) Abelesparams[0];
 	
 	if((int)np!=(int)(4 * Vmullayers + 4 * Abelesparams[0] + 6)){
 		err = INCORRECT_INPUT;
@@ -642,7 +643,8 @@ done:
 
 extern "C" int
 Abeles_imag(FitParamsPtr p){
-	int np, err = 0;
+	int err = 0;
+	CountInt np = 0;
 	double *Abelesparams = NULL;
 	double x,result;
 	int Vmullayers = 0;
@@ -668,7 +670,7 @@ Abeles_imag(FitParamsPtr p){
 	Abelesparams= (double*) WaveData(p->waveHandle);
 	x= p->x;
 	
-	Vmullayers = ((np - 8) / 4) - (int) Abelesparams[0];
+	Vmullayers = (((int)np - 8) / 4) - (int) Abelesparams[0];
 
 	if((int)np != (int)(4 * Vmullayers + 4 * Abelesparams[0] + 8)){
 		err = INCORRECT_INPUT;
@@ -687,8 +689,7 @@ done:
 extern "C" int
 parrattReflectance(FitParamsAllPtr p){
 	//number of coefficients, number of Q points
-	long ncoefs,npoints;
-	
+	CountInt ncoefs = 0, npoints = 0;
 	//temporary places for calculation
 	double realVal,imagVal;
 	
@@ -872,7 +873,7 @@ done:
 static XOPIORecResult
 RegisterFunction()
 {
-	int funcIndex;
+	XOPIORecResult funcIndex;
 	
 	funcIndex = GetXOPItem(0);			// Which function invoked ?
 	switch (funcIndex) {
