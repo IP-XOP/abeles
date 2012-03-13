@@ -342,9 +342,9 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	double isItWorthThreading = 0;
 	pthread_t *threads = NULL;
 	refCalcParm *arg = NULL;
-	long pointsEachThread = 0;
-	long pointsRemaining = 0;
-	long pointsConsumed = 0;
+	CountInt pointsEachThread = 0;
+	CountInt pointsRemaining = 0;
+	CountInt pointsConsumed = 0;
 	
 	//the functions that will do the calculation
 	void* (*threadWorkerFunc)(void*);
@@ -428,7 +428,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 			err = NOMEM;
 			goto done;
 		}
-		smearedY = (double*) malloc(sizeof(double) * RESPOINTS * npoints);
+		smearedY = (double*) malloc(sizeof(double) * smearedPoints);
 		if(!smearedY){
 			err = NOMEM;
 			goto done;
@@ -438,7 +438,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 		if(isSmeared)
 			dxP = xP + npoints;
 		
-		for(ii=0 ; ii < npoints * RESPOINTS ; ii += 1)
+		for(ii=0 ; ii < smearedPoints ; ii += 1)
 			smearedX[ii] = *(xP+ii/RESPOINTS) + (double)((ii%RESPOINTS)-(RESPOINTS-1)/2)*0.2*(*(dxP+ii/RESPOINTS));
 		calcY = smearedY;
 		calcX = smearedX;
@@ -476,7 +476,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	}
 	
 	//need to calculated how many points are given to each thread.
-	pointsEachThread = floorl(smearedPoints / threadsToCreate);
+	pointsEachThread = (CountInt) floorl(smearedPoints / threadsToCreate);
 	pointsRemaining = smearedPoints;
 	
 	for (ii = 0; ii < threadsToCreate - 1; ii++){
