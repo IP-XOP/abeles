@@ -75,16 +75,6 @@ resource 'XOPF' (1100) {
 			NT_FP64 + WAVE_TYPE,		// Double precision wave (x wave).
 		},
 		
-		"smearedAbelesall",					// Function name.
-		F_EXP | F_THREADSAFE | F_EXTERNAL,				// Function category,
-		NT_FP64,
-		{						// Return value type.
-			NT_FP64 + WAVE_TYPE,		// Double precision wave (coefficient wave).
-			NT_FP64 + WAVE_TYPE,		// Double precision wave (y wave).
-			NT_FP64 + WAVE_TYPE,		// Double precision wave (x wave).
-			NT_FP64 + WAVE_TYPE,		// Double precision wave (dx wave).
-		},
-		
 		"parrattReflectance",					// Function name.
 		F_EXP | F_EXTERNAL,				// Function category,
 		NT_FP64,						// Return value type.
