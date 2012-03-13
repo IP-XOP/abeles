@@ -7,6 +7,7 @@ calculates specular reflectivity as a function of Q momentum transfer.
 #include <math.h>
 #include <exception>
 #include "RefCalculator.h"
+#include <Vector>
 
 //we can do the calculation multithreaded, it should be faster.
 #ifdef MACIGOR
@@ -44,21 +45,6 @@ typedef struct FitParamsAll {
 	double result;			// not actually used.
 }FitParamsAll, *FitParamsAllPtr;
 
-/*
- this definition is for a fit function that takes a model wave and a Q wave (passed as a variable) and 
- resolution in Q, dQ and returns 
- reflectivity values, as a wave.
-*/
-
-typedef struct SmearedParamsAll {
-	waveHndl dXWaveHandle;	// dQ wave (input).	
-	waveHndl XWaveHandle;	// Q wave (input).
-	waveHndl YWaveHandle;	// R wave (output).
-	waveHndl CoefHandle;	// Coefficient wave.
-	UserFunctionThreadInfoPtr tp;
-	double result;			// not actually used.
-}SmearedParamsAll, *SmearedParamsAllPtr;
-
 #pragma pack()	// All structures passed to Igor are two-byte aligned.
 
 
@@ -68,97 +54,6 @@ typedef struct SmearedParamsAll {
  */
 int NUM_CPUS = 1;
 
-
-extern "C" int
-smearedAbelesAll(SmearedParamsAllPtr p){
-	CountInt ncoefs, npoints;
-	double realVal, imagVal;
-	int nlayers, Vmullayers=-1, err=0;
-	double *coefP = NULL;
-	double *xP = NULL;
-	double *yP = NULL;
-	double *dxP = NULL;
-	
-	
-	if (p->CoefHandle == NULL || p->YWaveHandle == NULL || p->XWaveHandle == NULL || p->dXWaveHandle == NULL) 
-	{
-		SetNaN64(&p->result);
-		err = NON_EXISTENT_WAVE;
-		goto done;
-	}
-	if (WaveType(p->CoefHandle) != NT_FP64 ||
-		  WaveType(p->YWaveHandle) != NT_FP64 ||
-		   WaveType(p->XWaveHandle) != NT_FP64 ||
-			WaveType(p->dXWaveHandle) != NT_FP64){
-		SetNaN64(&p->result);
-		err = REQUIRES_DP_WAVE;
-		goto done;
-	}
-	
-	if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1){
-		Vmullayers=0;
-	} else{
-		Vmullayers=(long)realVal;
-	}
-	
-	ncoefs= WavePoints(p->CoefHandle);
-	npoints = WavePoints(p->YWaveHandle);
-	if (npoints != WavePoints(p->XWaveHandle)){
-		SetNaN64(&p->result);
-		err = WAVES_NOT_SAME_LENGTH;
-		goto done;
-	}
-	if (npoints != WavePoints(p->dXWaveHandle)){
-		SetNaN64(&p->result);
-		err = WAVES_NOT_SAME_LENGTH;
-		goto done;
-	}
-	
-	try{
-		coefP =  new double[ncoefs];
-		xP =  new double[npoints];
-		yP = new double[npoints];
-		dxP = new double[npoints];
-	} catch (...){
-		err = NOMEM;
-		goto done;
-	}
-	
-	if(err = MDGetDPDataFromNumericWave(p->CoefHandle, coefP))
-		goto done;
-	if(err = MDGetDPDataFromNumericWave(p->YWaveHandle, yP))
-		goto done;
-	if(err = MDGetDPDataFromNumericWave(p->XWaveHandle, xP))
-		goto done;
-	if(err = MDGetDPDataFromNumericWave(p->dXWaveHandle, dxP))
-		goto done;
-	
-	nlayers = (long)coefP[0];
-	if(ncoefs != (4*Vmullayers+(4*nlayers+6))){
-		err = INCORRECT_INPUT;
-		goto done;
-	};
-	
-	if(err = smearedAbelescalcAll(coefP, yP, xP, dxP, (long) npoints))
-		goto done;
-	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle, yP))
-		goto done;
-	
-	WaveHandleModified(p->YWaveHandle);
-	p->result = 0;		// not actually used by FuncFit
-	
-done:
-	if(xP != NULL)
-		delete [] xP;
-	if(yP != NULL)
-		delete [] yP;
-	if(coefP != NULL)
-		delete [] coefP;
-	if(dxP != NULL)
-		delete [] dxP;
-	
-	return err;	
-}
 
 
 void getMultiLayerParams(long *Vmullayers, long *Vappendlayer, long *Vmulrep){
@@ -405,13 +300,15 @@ done:
 0 = AbelesAll
 1 = Abeles_imagAll
 2 = Abeles_BmagAll
+if
+ isSmeared=1, then do resolution smearing.
  */
  
 int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	int err = 0;
 
 	//number of coefficients, number of Q points
-	CountInt ncoefs,npoints;
+	CountInt ncoefs,npoints, smearedPoints;
 	
 	//how many layers you have
 	long nlayers;
@@ -424,13 +321,20 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	long Vmulrep=0;
 	
 	//a variable for iterating for loops
-	long ii;
+	CountInt ii;
+	
+	int isSmeared = 0;
+	int RESPOINTS = 13;
 	
 	//we will extract values from the supplied waves and store them as double arrays
 	//these pointers refer to the values extracted.
 	double *coefP = NULL;
 	double *xP = NULL;
 	double *yP = NULL;
+	double *dxP = NULL;
+	double *calcX, *calcY;
+	double *smearedX = NULL;
+	double *smearedY = NULL;
 	
 	//variables for the threadwise calculation of the reflectivity
 	extern int NUM_CPUS;
@@ -467,16 +371,18 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	
 	ncoefs = WavePoints(p->CoefHandle);
 	npoints = WavePoints(p->YWaveHandle);
-	if (npoints != WavePoints(p->XWaveHandle)){
-		SetNaN64(&p->result);
+	if(npoints == WavePoints(p->XWaveHandle)){
+		isSmeared = 0;
+		smearedPoints = npoints;
+	}
+	else if(npoints * 2 == WavePoints(p->XWaveHandle)){
+		isSmeared = 1;
+		smearedPoints = npoints * RESPOINTS;
+	} else {
 		err = WAVES_NOT_SAME_LENGTH;
-		goto done;
 	}
 	
-	coefP = (double*) WaveData(p->CoefHandle);
-	yP = (double*) WaveData(p->YWaveHandle);
-	xP = (double*) WaveData(p->XWaveHandle);
-	
+	coefP = (double*) WaveData(p->CoefHandle);	
 	//the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
 	//if not, the coefficient wave is wrong.
 	nlayers = (long)coefP[0];
@@ -511,10 +417,37 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 					goto done;
 				}				
 			};
-			
 			break;
 		default:
 			break;
+	}
+	
+	if(isSmeared){
+		smearedX = (double*) malloc(sizeof(double) * RESPOINTS * npoints);
+		if(!smearedX){
+			err = NOMEM;
+			goto done;
+		}
+		smearedY = (double*) malloc(sizeof(double) * RESPOINTS * npoints);
+		if(!smearedY){
+			err = NOMEM;
+			goto done;
+		}
+		yP = (double*) WaveData(p->YWaveHandle);
+		xP = (double*) WaveData(p->XWaveHandle);
+		if(isSmeared)
+			dxP = xP + npoints;
+		
+		for(ii=0 ; ii < npoints * RESPOINTS ; ii += 1)
+			smearedX[ii] = *(xP+ii/RESPOINTS) + (double)((ii%RESPOINTS)-(RESPOINTS-1)/2)*0.2*(*(dxP+ii/RESPOINTS));
+		calcY = smearedY;
+		calcX = smearedX;
+	} else {
+		yP = (double*) WaveData(p->YWaveHandle);
+		xP = (double*) WaveData(p->XWaveHandle);
+		
+		calcX = xP;
+		calcY = yP;
 	}
 		
 	//this relationship was worked out for a dualcore machine.
@@ -523,7 +456,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	//i.e. for a given number of layers, how many points were required for multithreading to be worthwhile.
 	//I plotted the number of points (y) vs the number of layers (x), giving the following relationship.
 	isItWorthThreading = 3.382 + 641. *pow(coefP[0], -0.73547);
-	if((double) npoints < isItWorthThreading)
+	if((double) smearedPoints < isItWorthThreading)
 		threadsToCreate = 1;
 	else
 		threadsToCreate = NUM_CPUS;
@@ -543,11 +476,11 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	}
 	
 	//need to calculated how many points are given to each thread.
-	pointsEachThread = floorl(npoints / threadsToCreate);
-	pointsRemaining = npoints;
+	pointsEachThread = floorl(smearedPoints / threadsToCreate);
+	pointsRemaining = smearedPoints;
 	
 	for (ii = 0; ii < threadsToCreate - 1; ii++){
-		arg[ii].coefP = coefP;
+		arg[ii].coefP = (double*) WaveData(p->CoefHandle);
 		arg[ii].npoints = pointsEachThread;
 		
 		arg[ii].Vmullayers = Vmullayers;
@@ -556,8 +489,8 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 		
 		//the following two lines specify where the Q values and R values will be sourced/written.
 		//i.e. an offset of the original array.
-		arg[ii].xP = xP + pointsConsumed;
-		arg[ii].yP = yP + pointsConsumed;
+		arg[ii].xP = calcX + pointsConsumed;
+		arg[ii].yP = calcY + pointsConsumed;
 		
 		pthread_create(&threads[ii], NULL, threadWorkerFunc, (void *)(arg+ii));
 		pointsRemaining -= pointsEachThread;
@@ -565,11 +498,33 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	}
 	
 	//do the remaining points in the main thread.
-	if(err = calcAllFunc(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
+	if(err = calcAllFunc((double*) WaveData(p->CoefHandle), calcY+pointsConsumed, calcX+pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
 		goto done;
 	
 	for (ii = 0; ii < threadsToCreate - 1 ; ii++)
 		pthread_join(threads[ii], NULL);
+	
+	/**if you're not smeared, you are all finished.  If you aren't, then you still have to calculate the smearing.
+	and refill the wave
+	 **/
+	if(isSmeared){
+		for(ii = 0 ; ii < npoints ; ii += 1){
+			*(yP+ii) = 0.056*(*(calcY + ii * RESPOINTS));
+			*(yP+ii) += 0.135*(*(calcY + ii * RESPOINTS + 1));														
+			*(yP+ii) += 0.278*(*(calcY + ii * RESPOINTS + 2));
+			*(yP+ii) += 0.487*(*(calcY + ii * RESPOINTS + 3));
+			*(yP+ii) += 0.726*(*(calcY + ii * RESPOINTS + 4));
+			*(yP+ii) += 0.923*(*(calcY + ii * RESPOINTS + 5));
+			*(yP+ii) += (*(calcY + ii * RESPOINTS + 6));
+			*(yP+ii) += 0.923*(*(calcY + ii * RESPOINTS + 7));
+			*(yP+ii) += 0.726*(*(calcY + ii * RESPOINTS + 8));
+			*(yP+ii) += 0.487*(*(calcY + ii * RESPOINTS + 9));
+			*(yP+ii) += 0.278*(*(calcY + ii * RESPOINTS + 10));
+			*(yP+ii) += 0.135*(*(calcY + ii * RESPOINTS + 11));
+			*(yP+ii) += 0.056*(*(calcY + ii * RESPOINTS + 12));
+			*(yP+ii) /=6.211;
+		}
+	}
 	
 	WaveHandleModified(p->YWaveHandle);
 	p->result = 0;		// not actually used by FuncFit
@@ -579,7 +534,10 @@ done:
 		free(threads);
 	if(arg)
 		free(arg);
-	
+	if(smearedX)
+		free(smearedX);
+	if(smearedY)
+		free(smearedY);
 	return err;		
 		
 }
@@ -596,6 +554,12 @@ extern "C" int
 Abeles_imagAll(FitParamsAllPtr p){
 	return AbelesAllWrapper(p, 1);
 }
+
+extern "C" int
+smearedAbelesAll(FitParamsAllPtr p){
+	return AbelesAllWrapper(p, 0);	
+}
+
 
 extern "C" int
 Abeles(FitParamsPtr p){
@@ -890,12 +854,9 @@ RegisterFunction()
 			return((XOPIORecResult)Abeles_imagAll);
 			break;
 		case 4:
-			return((XOPIORecResult)smearedAbelesAll);
-			break;
-		case 5:
 			return((XOPIORecResult)parrattReflectance);
 			break;
-		case 6:
+		case 5:
 			return((XOPIORecResult)Abeles_bmagAll);
 	}
 	return 0;
