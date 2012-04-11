@@ -1,5 +1,7 @@
 /*	Abeles.cpp
 calculates specular reflectivity as a function of Q momentum transfer.
+ 
+ Copyright Andrew Nelson and ANSTO 2007
 */
 
 #include "XOPStandardHeaders.h"			// Include ANSI headers, Mac headers, IgorXOP.h, XOP.h and XOPSupport.h
