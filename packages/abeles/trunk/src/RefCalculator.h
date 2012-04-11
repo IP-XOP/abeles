@@ -2,8 +2,7 @@
  *  Threadcalculator.h
  *  Abeles
  *
- *  Created by andrew on 24/02/09.
- *  Copyright 2009 __MyCompanyName__. All rights reserved.
+ Copyright Andrew Nelson and ANSTO 2009
  *
  */
 	void *AbelesThreadWorker(void *arg);
