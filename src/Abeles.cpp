@@ -302,8 +302,6 @@ done:
 0 = AbelesAll
 1 = Abeles_imagAll
 2 = Abeles_BmagAll
-if
- isSmeared=1, then do resolution smearing.
  */
  
 int AbelesAllWrapper(FitParamsAllPtr p, int mode){

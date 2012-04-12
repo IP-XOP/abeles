@@ -1,7 +1,6 @@
 #pragma once
 
 // a class to do complex arithmetic.
-s
 namespace MyComplexNumber{
 	//Complex Class definition
 	class MyComplex
