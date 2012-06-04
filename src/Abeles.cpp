@@ -438,7 +438,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 		if(isSmeared)
 			dxP = xP + npoints;
 		
-		double FWHM = 4 * sqrt(2 * log(2));
+		double FWHM = 4 * sqrt(2 * log(2.0));
 		for(ii=0 ; ii < smearedPoints ; ii += 1)
 			smearedX[ii] = *(xP+ii/RESPOINTS) + (double)((ii%RESPOINTS)-(RESPOINTS-1)/2) / FWHM * (*(dxP+ii/RESPOINTS));
 		calcY = smearedY;
@@ -523,7 +523,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 			*(yP+ii) += 0.053991 * (*(calcY + ii * RESPOINTS + 10));
 			*(yP+ii) += 0.0175283 * (*(calcY + ii * RESPOINTS + 11));
 			*(yP+ii) += 0.00443185 * (*(calcY + ii * RESPOINTS + 12));
-			*(yP+ii) * = 0.5;
+			*(yP+ii) *= 0.5;
 		}
 	}
 	
