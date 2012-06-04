@@ -438,8 +438,9 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 		if(isSmeared)
 			dxP = xP + npoints;
 		
+		double FWHM = 4 * sqrt(2 * log(2));
 		for(ii=0 ; ii < smearedPoints ; ii += 1)
-			smearedX[ii] = *(xP+ii/RESPOINTS) + (double)((ii%RESPOINTS)-(RESPOINTS-1)/2)*0.2*(*(dxP+ii/RESPOINTS));
+			smearedX[ii] = *(xP+ii/RESPOINTS) + (double)((ii%RESPOINTS)-(RESPOINTS-1)/2) / FWHM * (*(dxP+ii/RESPOINTS));
 		calcY = smearedY;
 		calcX = smearedX;
 	} else {
@@ -509,20 +510,20 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	 **/
 	if(isSmeared){
 		for(ii = 0 ; ii < npoints ; ii += 1){
-			*(yP+ii) = 0.056*(*(calcY + ii * RESPOINTS));
-			*(yP+ii) += 0.135*(*(calcY + ii * RESPOINTS + 1));														
-			*(yP+ii) += 0.278*(*(calcY + ii * RESPOINTS + 2));
-			*(yP+ii) += 0.487*(*(calcY + ii * RESPOINTS + 3));
-			*(yP+ii) += 0.726*(*(calcY + ii * RESPOINTS + 4));
-			*(yP+ii) += 0.923*(*(calcY + ii * RESPOINTS + 5));
-			*(yP+ii) += (*(calcY + ii * RESPOINTS + 6));
-			*(yP+ii) += 0.923*(*(calcY + ii * RESPOINTS + 7));
-			*(yP+ii) += 0.726*(*(calcY + ii * RESPOINTS + 8));
-			*(yP+ii) += 0.487*(*(calcY + ii * RESPOINTS + 9));
-			*(yP+ii) += 0.278*(*(calcY + ii * RESPOINTS + 10));
-			*(yP+ii) += 0.135*(*(calcY + ii * RESPOINTS + 11));
-			*(yP+ii) += 0.056*(*(calcY + ii * RESPOINTS + 12));
-			*(yP+ii) /=6.211;
+			*(yP+ii) = 0.00443185 * (*(calcY + ii * RESPOINTS));
+			*(yP+ii) += 0.0175283 * (*(calcY + ii * RESPOINTS + 1));														
+			*(yP+ii) += 0.053991 * (*(calcY + ii * RESPOINTS + 2));
+			*(yP+ii) += 0.129518 * (*(calcY + ii * RESPOINTS + 3));
+			*(yP+ii) += 0.241971 * (*(calcY + ii * RESPOINTS + 4));
+			*(yP+ii) += 0.352065 * (*(calcY + ii * RESPOINTS + 5));
+			*(yP+ii) += 0.398942 * (*(calcY + ii * RESPOINTS + 6));
+			*(yP+ii) += 0.352065 * (*(calcY + ii * RESPOINTS + 7));
+			*(yP+ii) += 0.241971 * (*(calcY + ii * RESPOINTS + 8));
+			*(yP+ii) += 0.129518 * (*(calcY + ii * RESPOINTS + 9));
+			*(yP+ii) += 0.053991 * (*(calcY + ii * RESPOINTS + 10));
+			*(yP+ii) += 0.0175283 * (*(calcY + ii * RESPOINTS + 11));
+			*(yP+ii) += 0.00443185 * (*(calcY + ii * RESPOINTS + 12));
+			*(yP+ii) * = 0.5;
 		}
 	}
 	
