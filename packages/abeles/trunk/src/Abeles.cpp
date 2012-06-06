@@ -323,9 +323,6 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	//a variable for iterating for loops
 	CountInt ii;
 	
-	int isSmeared = 0;
-	int RESPOINTS = 13;
-	
 	//we will extract values from the supplied waves and store them as double arrays
 	//these pointers refer to the values extracted.
 	double *coefP = NULL;
@@ -345,6 +342,42 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	CountInt pointsEachThread = 0;
 	CountInt pointsRemaining = 0;
 	CountInt pointsConsumed = 0;
+	
+	//values for the gaussian quadrature.
+	int isSmeared = 0;
+	int RESPOINTS = 13;
+	double INTLIMIT = 3.5;		//integration between -3.5 and 3 sigma
+	double FWHM = 2 * sqrt(2 * log(2.0));
+	double va, vb, sigma;
+
+	double weights[13] = {0.0404840047653159,
+								 0.0921214998377285,
+								  0.1388735102197872,
+								   0.1781459807619457,
+								    0.2078160475368885,
+								     0.2262831802628972,
+								      0.2325515532308739,
+									 0.2262831802628972,
+								    0.2078160475368885,
+								   0.1781459807619457,
+								  0.1388735102197872,
+								 0.0921214998377285,
+								0.0404840047653159};
+	double abscissa[13] = {-0.9841830547185881,
+								  -0.9175983992229779,
+								   -0.8015780907333099,
+								    -0.6423493394403402,
+								     -0.4484927510364469,
+								      -0.2304583159551348,
+								       0.,
+									  0.2304583159551348,
+									 0.4484927510364469,
+									0.6423493394403402,
+								   0.8015780907333099,
+								  0.9175983992229779,
+								 0.9841830547185881};
+	
+		
 	
 	//the functions that will do the calculation
 	void* (*threadWorkerFunc)(void*);
@@ -438,9 +471,13 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 		if(isSmeared)
 			dxP = xP + npoints;
 		
-		double FWHM = 4 * sqrt(2 * log(2.0));
-		for(ii=0 ; ii < smearedPoints ; ii += 1)
-			smearedX[ii] = *(xP+ii/RESPOINTS) + (double)((ii%RESPOINTS)-(RESPOINTS-1)/2) / FWHM * (*(dxP+ii/RESPOINTS));
+		for(ii=0 ; ii < smearedPoints ; ii += 1){
+			sigma = dxP[ii/RESPOINTS] / FWHM;
+			va = -INTLIMIT*sigma + xP[ii/RESPOINTS];
+			vb = INTLIMIT * sigma + xP[ii/RESPOINTS];
+			smearedX[ii] = (abscissa[ii % RESPOINTS] * (vb-va) + vb + va)/2;
+		}		
+
 		calcY = smearedY;
 		calcX = smearedX;
 	} else {
@@ -510,20 +547,43 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	 **/
 	if(isSmeared){
 		for(ii = 0 ; ii < npoints ; ii += 1){
-			*(yP+ii) = 0.00443185 * (*(calcY + ii * RESPOINTS));
-			*(yP+ii) += 0.0175283 * (*(calcY + ii * RESPOINTS + 1));														
-			*(yP+ii) += 0.053991 * (*(calcY + ii * RESPOINTS + 2));
-			*(yP+ii) += 0.129518 * (*(calcY + ii * RESPOINTS + 3));
-			*(yP+ii) += 0.241971 * (*(calcY + ii * RESPOINTS + 4));
-			*(yP+ii) += 0.352065 * (*(calcY + ii * RESPOINTS + 5));
-			*(yP+ii) += 0.398942 * (*(calcY + ii * RESPOINTS + 6));
-			*(yP+ii) += 0.352065 * (*(calcY + ii * RESPOINTS + 7));
-			*(yP+ii) += 0.241971 * (*(calcY + ii * RESPOINTS + 8));
-			*(yP+ii) += 0.129518 * (*(calcY + ii * RESPOINTS + 9));
-			*(yP+ii) += 0.053991 * (*(calcY + ii * RESPOINTS + 10));
-			*(yP+ii) += 0.0175283 * (*(calcY + ii * RESPOINTS + 11));
-			*(yP+ii) += 0.00443185 * (*(calcY + ii * RESPOINTS + 12));
-			*(yP+ii) *= 0.5;
+/*			sigma = fabs(dxP[ii] / FWHM);
+			vb = xP[ii] + INTLIMIT * sigma;
+			va = xP[ii] - INTLIMIT * sigma;
+			if(va < 0)
+				va = 0;
+			
+			yP[ii] = calcY[ii * RESPOINTS] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS] - xP[ii])/ sigma, 2)) * weights[0];			
+			yP[ii] += calcY[ii * RESPOINTS + 1] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 1] - xP[ii])/ sigma, 2)) * weights[1];
+			yP[ii] += calcY[ii * RESPOINTS + 2] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 2] - xP[ii])/ sigma, 2)) * weights[2];
+			yP[ii] += calcY[ii * RESPOINTS + 3] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 3] - xP[ii])/ sigma, 2)) * weights[3];
+			yP[ii] += calcY[ii * RESPOINTS + 4] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 4] - xP[ii])/ sigma, 2)) * weights[4];
+			yP[ii] += calcY[ii * RESPOINTS + 5] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 5] - xP[ii])/ sigma, 2)) * weights[5];
+			yP[ii] += calcY[ii * RESPOINTS + 6] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 6] - xP[ii])/ sigma, 2)) * weights[6];
+			yP[ii] += calcY[ii * RESPOINTS + 7] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 7] - xP[ii])/ sigma, 2)) * weights[7];
+			yP[ii] += calcY[ii * RESPOINTS + 8] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 8] - xP[ii])/ sigma, 2)) * weights[8];
+			yP[ii] += calcY[ii * RESPOINTS + 9] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 9] - xP[ii])/ sigma, 2)) * weights[9];
+			yP[ii] += calcY[ii * RESPOINTS + 10] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 10] - xP[ii])/ sigma, 2)) * weights[10];
+			yP[ii] += calcY[ii * RESPOINTS + 11] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 11] - xP[ii])/ sigma, 2)) * weights[11];
+			yP[ii] += calcY[ii * RESPOINTS + 12] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 12] - xP[ii])/ sigma, 2)) * weights[12];
+			yP[ii] *= (vb - va)/2;
+ */
+			//assumes 13 point gaussian quadrature, over +/- 3.5 sigma
+			yP[ii] = calcY[ii * RESPOINTS] * weights[0] * 0.001057642102668805;
+			yP[ii] += calcY[ii * RESPOINTS + 1] * weights[1] * 0.002297100003792314;
+			yP[ii] += calcY[ii * RESPOINTS + 2] * weights[2] *0.007793859679303332;
+			yP[ii] += calcY[ii * RESPOINTS + 3] * weights[3] *0.0318667809686739;
+			yP[ii] += calcY[ii * RESPOINTS + 4] * weights[4] *0.1163728244269813;
+			yP[ii] += calcY[ii * RESPOINTS + 5] * weights[5] *0.288158781825899;
+			yP[ii] += calcY[ii * RESPOINTS + 6] * weights[6] * 0.3989422804014327;
+			yP[ii] += calcY[ii * RESPOINTS + 7] * weights[7] * 0.288158781825899;
+			yP[ii] += calcY[ii * RESPOINTS + 8] * weights[8] * 0.1163728244269813;
+			yP[ii] += calcY[ii * RESPOINTS + 9] * weights[9] * 0.0318667809686739;
+			yP[ii] += calcY[ii * RESPOINTS + 10] * weights[10] * 0.007793859679303332;
+			yP[ii] += calcY[ii * RESPOINTS + 11] * weights[11] *0.002297100003792314;
+			yP[ii] += calcY[ii * RESPOINTS + 12] * weights[12] * 0.001057642102668805;
+			
+			yP[ii] *= 3.5;
 		}
 	}
 	
