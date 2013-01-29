@@ -499,6 +499,7 @@ AbelesCalc_ImagAll(const double *coefP, double *yP, const double *xP,long npoint
 
 	double scale,bkg,subrough;
 	double num=0,den=0, answer=0;
+	double anum, anum2;
 
 	MyComplex super;
 	MyComplex sub;
@@ -580,15 +581,25 @@ AbelesCalc_ImagAll(const double *coefP, double *yP, const double *xP,long npoint
 		
 		//now calculate reflectivities
 		for(ii = 0 ; ii < nlayers+1 ; ii++){
-			//work out the fresnel coefficient
-			if(Vmullayers>0 && ii==Vmulappend && Vmulrep>0 ){
-				rj=fres(pj[ii],pj_mul[0],coefP[offset+3]);
-			} else {
-				rj = (ii == nlayers) ?
-					((pj[ii]-pj[ii+1])/(pj[ii]+pj[ii+1]))*compexp(pj[ii]*pj[ii+1]*-2*subrough*subrough)
+			if(Vmullayers > 0 && ii == Vmulappend && Vmulrep > 0 )
+				rj = fres(pj[ii], pj_mul[0], coefP[offset+3]);
+			else {
+				if((pj[ii]).im == 0 && (pj[ii + 1]).im == 0){
+					anum = (pj[ii]).re;
+					anum2 = (pj[ii + 1]).re;
+					rj.re = (ii == nlayers) ? 
+					((anum - anum2) / (anum + anum2)) * exp(anum * anum2 * -2 * subrough * subrough)
 					:
-					((pj[ii]-pj[ii+1])/(pj[ii]+pj[ii+1]))*compexp(pj[ii]*pj[ii+1]*-2*coefP[4*(ii+1)+7]*coefP[4*(ii+1)+7]);
+					((anum - anum2) / (anum + anum2)) * exp(anum * anum2 * -2 * coefP[4 * (ii + 1) + 7] * coefP[4 * (ii + 1) + 7]);
+					rj.im = 0.;
+				} else {
+					rj = (ii == nlayers) ?
+					((pj[ii] - pj[ii + 1])/(pj[ii] + pj[ii + 1])) * compexp(pj[ii] * pj[ii + 1] * -2 * subrough * subrough)
+					:
+					((pj[ii] - pj[ii + 1])/(pj[ii] + pj[ii + 1])) * compexp(pj[ii] * pj[ii + 1] * -2 * coefP[4 * (ii + 1) + 7] * coefP[4 * (ii + 1) + 7]);	
+				};
 			}
+			
 
 			//work out the beta for the (non-multi)layer
 			beta = (ii==0)? oneC : compexp(pj[ii] * MyComplex(0,fabs(coefP[4*ii+4])));
@@ -600,10 +611,6 @@ AbelesCalc_ImagAll(const double *coefP, double *yP, const double *xP,long npoint
 			MI[1][0]=rj*MI[1][1];
 
 			memcpy(temp2, MRtotal, sizeof(MRtotal));
-//			temp2[0][0] = MRtotal[0][0];
-//			temp2[0][1] = MRtotal[0][1];
-//			temp2[1][0] = MRtotal[1][0];
-//			temp2[1][1] = MRtotal[1][1];
 
 			//multiply MR,MI to get the updated total matrix.			
 			matmul(temp2,MI,MRtotal);
@@ -633,10 +640,6 @@ AbelesCalc_ImagAll(const double *coefP, double *yP, const double *xP,long npoint
 				MI[1][0]=rj*MI[1][1];
 
 				memcpy(temp2, subtotal, sizeof(subtotal));
-//				temp2[0][0] = subtotal[0][0];
-//				temp2[0][1] = subtotal[0][1];
-//				temp2[1][0] = subtotal[1][0];
-//				temp2[1][1] = subtotal[1][1];
 
 				matmul(temp2,MI,subtotal);
 			};

@@ -332,6 +332,9 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	double *calcX, *calcY;
 	double *smearedX = NULL;
 	double *smearedY = NULL;
+    double real = 0;
+    double imag = 0;
+    int retval = -1;
 	
 	//variables for the threadwise calculation of the reflectivity
 	extern int NUM_CPUS;
@@ -411,6 +414,9 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	else if(npoints * 2 == WavePoints(p->XWaveHandle)){
 		isSmeared = 1;
 		smearedPoints = npoints * RESPOINTS;
+        retval = FetchNumVar("V_gausspoints", &real, &imag);
+        if(retval != -1)
+            RESPOINTS = (int) real;
 	} else {
 		err = WAVES_NOT_SAME_LENGTH;
 	}
@@ -472,9 +478,10 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 			dxP = xP + npoints;
 		
 		for(ii=0 ; ii < smearedPoints ; ii += 1){
-			sigma = dxP[ii/RESPOINTS] / FWHM;
-			va = -INTLIMIT*sigma + xP[ii/RESPOINTS];
-			vb = INTLIMIT * sigma + xP[ii/RESPOINTS];
+            int idx = ii / RESPOINTS;
+			sigma = dxP[idx] / FWHM;
+			va = -INTLIMIT*sigma + xP[idx];
+			vb = INTLIMIT * sigma + xP[idx];
 			smearedX[ii] = (abscissa[ii % RESPOINTS] * (vb-va) + vb + va)/2;
 		}		
 
@@ -547,27 +554,6 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	 **/
 	if(isSmeared){
 		for(ii = 0 ; ii < npoints ; ii += 1){
-/*			sigma = fabs(dxP[ii] / FWHM);
-			vb = xP[ii] + INTLIMIT * sigma;
-			va = xP[ii] - INTLIMIT * sigma;
-			if(va < 0)
-				va = 0;
-			
-			yP[ii] = calcY[ii * RESPOINTS] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS] - xP[ii])/ sigma, 2)) * weights[0];			
-			yP[ii] += calcY[ii * RESPOINTS + 1] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 1] - xP[ii])/ sigma, 2)) * weights[1];
-			yP[ii] += calcY[ii * RESPOINTS + 2] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 2] - xP[ii])/ sigma, 2)) * weights[2];
-			yP[ii] += calcY[ii * RESPOINTS + 3] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 3] - xP[ii])/ sigma, 2)) * weights[3];
-			yP[ii] += calcY[ii * RESPOINTS + 4] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 4] - xP[ii])/ sigma, 2)) * weights[4];
-			yP[ii] += calcY[ii * RESPOINTS + 5] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 5] - xP[ii])/ sigma, 2)) * weights[5];
-			yP[ii] += calcY[ii * RESPOINTS + 6] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 6] - xP[ii])/ sigma, 2)) * weights[6];
-			yP[ii] += calcY[ii * RESPOINTS + 7] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 7] - xP[ii])/ sigma, 2)) * weights[7];
-			yP[ii] += calcY[ii * RESPOINTS + 8] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 8] - xP[ii])/ sigma, 2)) * weights[8];
-			yP[ii] += calcY[ii * RESPOINTS + 9] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 9] - xP[ii])/ sigma, 2)) * weights[9];
-			yP[ii] += calcY[ii * RESPOINTS + 10] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 10] - xP[ii])/ sigma, 2)) * weights[10];
-			yP[ii] += calcY[ii * RESPOINTS + 11] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 11] - xP[ii])/ sigma, 2)) * weights[11];
-			yP[ii] += calcY[ii * RESPOINTS + 12] / (SQRT2PI * sigma) * exp(-0.5 *  pow((smearedX[ii * RESPOINTS + 12] - xP[ii])/ sigma, 2)) * weights[12];
-			yP[ii] *= (vb - va)/2;
- */
 			//assumes 13 point gaussian quadrature, over +/- 3.5 sigma
 			yP[ii] = calcY[ii * RESPOINTS] * weights[0] * 0.001057642102668805;
 			yP[ii] += calcY[ii * RESPOINTS + 1] * weights[1] * 0.002297100003792314;
