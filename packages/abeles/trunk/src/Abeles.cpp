@@ -10,6 +10,7 @@ calculates specular reflectivity as a function of Q momentum transfer.
 #include <exception>
 #include "RefCalculator.h"
 #include <Vector>
+#include "GaussWeights.h"
 
 //we can do the calculation multithreaded, it should be faster.
 #ifdef MACIGOR
@@ -20,6 +21,9 @@ calculates specular reflectivity as a function of Q momentum transfer.
 #include "sched.h"
 #include "semaphore.h"
 #endif
+
+GaussWeights *pinstance;
+
 
 #pragma pack(2)	// All structures passed to Igor are two-byte aligned.
 
@@ -329,6 +333,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	double *xP = NULL;
 	double *yP = NULL;
 	double *dxP = NULL;
+    double *dp = NULL;
 	double *calcX, *calcY;
 	double *smearedX = NULL;
 	double *smearedY = NULL;
@@ -349,38 +354,12 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	//values for the gaussian quadrature.
 	int isSmeared = 0;
 	int RESPOINTS = 13;
-	double INTLIMIT = 3.5;		//integration between -3.5 and 3 sigma
+	double INTLIMIT = 3.5;		//integration between -3.5 and 3.5 sigma
 	double FWHM = 2 * sqrt(2 * log(2.0));
 	double va, vb, sigma;
-
-	double weights[13] = {0.0404840047653159,
-								 0.0921214998377285,
-								  0.1388735102197872,
-								   0.1781459807619457,
-								    0.2078160475368885,
-								     0.2262831802628972,
-								      0.2325515532308739,
-									 0.2262831802628972,
-								    0.2078160475368885,
-								   0.1781459807619457,
-								  0.1388735102197872,
-								 0.0921214998377285,
-								0.0404840047653159};
-	double abscissa[13] = {-0.9841830547185881,
-								  -0.9175983992229779,
-								   -0.8015780907333099,
-								    -0.6423493394403402,
-								     -0.4484927510364469,
-								      -0.2304583159551348,
-								       0.,
-									  0.2304583159551348,
-									 0.4484927510364469,
-									0.6423493394403402,
-								   0.8015780907333099,
-								  0.9175983992229779,
-								 0.9841830547185881};
-	
-		
+    extern GaussWeights *pinstance;
+    std::vector<double> weights;
+    std::vector<double> abscissa;
 	
 	//the functions that will do the calculation
 	void* (*threadWorkerFunc)(void*);
@@ -417,6 +396,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
         retval = FetchNumVar("V_gausspoints", &real, &imag);
         if(retval != -1)
             RESPOINTS = (int) real;
+        
 	} else {
 		err = WAVES_NOT_SAME_LENGTH;
 	}
@@ -474,16 +454,20 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 		}
 		yP = (double*) WaveData(p->YWaveHandle);
 		xP = (double*) WaveData(p->XWaveHandle);
-		if(isSmeared)
-			dxP = xP + npoints;
+		dxP = xP + npoints;
 		
-		for(ii=0 ; ii < smearedPoints ; ii += 1){
+        pinstance->getGaussWeight(RESPOINTS, abscissa, weights);
+        
+		for(ii = 0 ; ii < smearedPoints ; ii += 1){
             int idx = ii / RESPOINTS;
-			sigma = dxP[idx] / FWHM;
-			va = -INTLIMIT*sigma + xP[idx];
-			vb = INTLIMIT * sigma + xP[idx];
+            sigma = dxP[idx] / FWHM;
+            va = -INTLIMIT * sigma + xP[idx];
+            vb = INTLIMIT * sigma + xP[idx];
 			smearedX[ii] = (abscissa[ii % RESPOINTS] * (vb-va) + vb + va)/2;
-		}		
+		}
+        
+        for(ii = 0 ; ii < RESPOINTS ; ii++)
+            weights[ii] = exp(-0.5 * pow(INTLIMIT * abscissa[ii], 2)) * weights[ii] / sqrt(2 * M_PI);
 
 		calcY = smearedY;
 		calcX = smearedX;
@@ -553,24 +537,14 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	and refill the wave
 	 **/
 	if(isSmeared){
-		for(ii = 0 ; ii < npoints ; ii += 1){
-			//assumes 13 point gaussian quadrature, over +/- 3.5 sigma
-			yP[ii] = calcY[ii * RESPOINTS] * weights[0] * 0.001057642102668805;
-			yP[ii] += calcY[ii * RESPOINTS + 1] * weights[1] * 0.002297100003792314;
-			yP[ii] += calcY[ii * RESPOINTS + 2] * weights[2] *0.007793859679303332;
-			yP[ii] += calcY[ii * RESPOINTS + 3] * weights[3] *0.0318667809686739;
-			yP[ii] += calcY[ii * RESPOINTS + 4] * weights[4] *0.1163728244269813;
-			yP[ii] += calcY[ii * RESPOINTS + 5] * weights[5] *0.288158781825899;
-			yP[ii] += calcY[ii * RESPOINTS + 6] * weights[6] * 0.3989422804014327;
-			yP[ii] += calcY[ii * RESPOINTS + 7] * weights[7] * 0.288158781825899;
-			yP[ii] += calcY[ii * RESPOINTS + 8] * weights[8] * 0.1163728244269813;
-			yP[ii] += calcY[ii * RESPOINTS + 9] * weights[9] * 0.0318667809686739;
-			yP[ii] += calcY[ii * RESPOINTS + 10] * weights[10] * 0.007793859679303332;
-			yP[ii] += calcY[ii * RESPOINTS + 11] * weights[11] *0.002297100003792314;
-			yP[ii] += calcY[ii * RESPOINTS + 12] * weights[12] * 0.001057642102668805;
-			
-			yP[ii] *= 3.5;
-		}
+        memset(yP, 0, sizeof(double) * npoints);
+        
+		for(ii = 0 ; ii < smearedPoints ; ii += 1)
+            yP[ii / RESPOINTS] += calcY[ii] * weights[ii % RESPOINTS];
+            
+        dp = yP;
+        for(ii = 0 ; ii < npoints ; ii++, dp++)
+            *dp = *dp * INTLIMIT;
 	}
 	
 	WaveHandleModified(p->YWaveHandle);
@@ -918,11 +892,16 @@ extern "C" void
 XOPEntry(void)
 {	
 	XOPIORecResult result = 0;
-	
+    extern GaussWeights *pinstance;
+    
 	switch (GetXOPMessage()) {
 		case FUNCADDRS:
 			result = RegisterFunction();	// This tells Igor the address of our function.
 			break;
+        case CLEANUP:
+            delete(pinstance);
+            break;
+            
 	}
 	SetXOPResult(result);
 }
@@ -934,11 +913,16 @@ XOPEntry(void)
  main() does any necessary initialization and then sets the XOPEntry field of the
  ioRecHandle to the address to be called for future messages.
  */
-HOST_IMPORT int main(IORecHandle ioRecHandle){	
+HOST_IMPORT int main(IORecHandle ioRecHandle){
 	XOPInit(ioRecHandle);							// Do standard XOP initialization.
 	SetXOPEntry(XOPEntry);							// Set entry point for future calls.
 	
 	extern int NUM_CPUS;
+    extern GaussWeights *pinstance;
+    
+    pinstance = new GaussWeights();
+    if(!pinstance)
+        return NOMEM;
 
 	//find out the number of CPU's.
 #ifdef WINIGOR
