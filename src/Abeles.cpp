@@ -392,11 +392,10 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	}
 	else if(npoints * 2 == WavePoints(p->XWaveHandle)){
 		isSmeared = 1;
-		smearedPoints = npoints * RESPOINTS;
         retval = FetchNumVar("V_gausspoints", &real, &imag);
         if(retval != -1)
             RESPOINTS = (int) real;
-        
+		smearedPoints = npoints * RESPOINTS;        
 	} else {
 		err = WAVES_NOT_SAME_LENGTH;
 	}
