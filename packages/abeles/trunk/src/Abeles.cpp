@@ -330,6 +330,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	//we will extract values from the supplied waves and store them as double arrays
 	//these pointers refer to the values extracted.
 	double *coefP = NULL;
+    double bkd = 0.0;
 	double *xP = NULL;
 	double *yP = NULL;
 	double *dxP = NULL;
@@ -420,7 +421,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 				}
 				
 			};
-			
+            bkd = coefP[4];			
 			break;
 		case 1:
 			threadWorkerFunc = &AbelesImagThreadWorker;
@@ -435,6 +436,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 					goto done;
 				}				
 			};
+            bkd = coefP[6];            
 			break;
 		default:
 			break;
@@ -470,6 +472,14 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 
 		calcY = smearedY;
 		calcX = smearedX;
+        switch(mode){
+            case 0:
+                coefP[4] = 0;
+                break;
+            case 1:
+                coefP[6] = 0;
+                break;
+        }
 	} else {
 		yP = (double*) WaveData(p->YWaveHandle);
 		xP = (double*) WaveData(p->XWaveHandle);
@@ -537,13 +547,21 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	 **/
 	if(isSmeared){
         memset(yP, 0, sizeof(double) * npoints);
+        switch(mode){
+            case 0:
+                coefP[4] = bkd;
+                break;
+            case 1:
+                coefP[6] = bkd;
+                break;
+        }
         
 		for(ii = 0 ; ii < smearedPoints ; ii += 1)
             yP[ii / RESPOINTS] += calcY[ii] * weights[ii % RESPOINTS];
             
         dp = yP;
         for(ii = 0 ; ii < npoints ; ii++, dp++)
-            *dp = *dp * INTLIMIT;
+            *dp = (*dp * INTLIMIT) + bkd;
 	}
 	
 	WaveHandleModified(p->YWaveHandle);
