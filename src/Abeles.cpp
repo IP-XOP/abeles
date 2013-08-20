@@ -23,6 +23,7 @@ calculates specular reflectivity as a function of Q momentum transfer.
 #endif
 
 GaussWeights *pinstance;
+pthread_mutex_t changeWeightsMutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 #pragma pack(2)	// All structures passed to Igor are two-byte aligned.

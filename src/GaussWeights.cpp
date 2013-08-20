@@ -21,7 +21,9 @@ void GaussWeights::getGaussWeight(int n, std::vector<double> &x, std::vector<dou
     std::map<int, GaussWeight>::iterator it;
     GaussWeight gw;
     int i, m;
+    extern pthread_mutex_t changeWeightsMutex;
 
+    pthread_mutex_lock(&changeWeightsMutex);
     it = gaussWeightsStorage.find(n);
     
     if(it == gaussWeightsStorage.end()){
@@ -42,7 +44,9 @@ void GaussWeights::getGaussWeight(int n, std::vector<double> &x, std::vector<dou
         
         std::reverse(gw.x.begin(),gw.x.end());
         
-        gaussWeightsStorage[n] = gw;
+        gaussWeightsStorage.insert(std::pair<int, GaussWeight>(n, gw));
+//        gaussWeightsStorage[n] = gw;
+
         x.resize(gw.x.size());
         w.resize(gw.x.size());
         
@@ -55,4 +59,5 @@ void GaussWeights::getGaussWeight(int n, std::vector<double> &x, std::vector<dou
         x.assign(it->second.x.begin(), it->second.x.end());
         w.assign(it->second.w.begin(), it->second.w.end());
     }
+    pthread_mutex_unlock(&changeWeightsMutex);
 };
