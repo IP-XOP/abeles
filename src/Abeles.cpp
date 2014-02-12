@@ -1008,8 +1008,8 @@ Abelescalc(const double *coefP, double x, double *result){
 		goto done;
 	}
 	
-	memset(pj, 0, sizeof(pj));
-	memset(SLDmatrix, 0, sizeof(SLDmatrix));
+	memset(pj, 0, (nlayers + 2) * sizeof(*pj));
+	memset(SLDmatrix, 0, (nlayers + 2) * sizeof(*SLDmatrix));
 	
 	scale = coefP[1];
 	bkg = fabs(coefP[4]);
@@ -1042,7 +1042,7 @@ Abelescalc(const double *coefP, double x, double *result){
 				err = NOMEM;
 				goto done;
 			}
-			memset(pj_mul, 0, sizeof(pj_mul));
+			memset(pj_mul, 0, Vmullayers * sizeof(*pj_mul));
 			for(ii = 0 ; ii < Vmullayers ; ii += 1){
 				numtemp = (coefP[3]*1e-6*coefP[(4*ii)+offset+2]/100) +(1e-6 * ((100 - coefP[(4*ii)+offset+2])/100) * coefP[(4*ii)+offset+1]);		//sld of the layer
 				*(SLDmatrixREP + ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));
@@ -1239,8 +1239,8 @@ Abelescalc_imag(const double *coefP, double x, double *result){
 		goto done;
 	}
 	
-	memset(pj, 0, sizeof(pj));
-	memset(SLDmatrix, 0, sizeof(SLDmatrix));
+	memset(pj, 0, (nlayers + 2) * sizeof(*pj));
+	memset(SLDmatrix, 0, (nlayers + 2) * sizeof(*SLDmatrix));
 	
 	scale = coefP[1];
 	bkg = coefP[6];
@@ -1274,8 +1274,8 @@ Abelescalc_imag(const double *coefP, double x, double *result){
 				err = NOMEM;
 				goto done;
 			}
-			memset(pj_mul, 0, sizeof(pj_mul));
-			memset(SLDmatrixREP,0,sizeof(SLDmatrixREP));
+			memset(pj_mul, 0, Vmullayers * sizeof(*pj_mul));
+			memset(SLDmatrixREP, 0, Vmullayers * sizeof(*SLDmatrixREP));
 			for(ii=0; ii<Vmullayers;ii+=1){
 				*(SLDmatrixREP+ii) = MyComplex(4 * PI, 0)*(MyComplex(coefP[(4*ii)+offset+1]*1e-6,coefP[(4*ii)+offset+2])  - super);
 			}

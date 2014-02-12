@@ -300,8 +300,8 @@ AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, in
 		goto done;
 	}
 
-	memset(pj, 0, sizeof(pj));
-	memset(SLDmatrix, 0, sizeof(SLDmatrix));
+	memset(pj, 0, (nlayers + 2) * sizeof(*pj));
+	memset(SLDmatrix, 0, (nlayers + 2) * sizeof(*SLDmatrix));
 
 	scale = coefP[1];
 	bkg = fabs(coefP[4]);
@@ -327,7 +327,8 @@ AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, in
 				err = NOMEM;
 				goto done;
 			}
-			memset(pj_mul, 0, sizeof(pj_mul));
+			memset(pj_mul, 0, Vmullayers * sizeof(*pj_mul));
+        
 			for(ii=0; ii<Vmullayers;ii+=1){
 				numtemp = (coefP[3]*1e-6*coefP[(4*ii)+offset+2]/100) +(1e-6 * ((100 - coefP[(4*ii)+offset+2])/100) * coefP[(4*ii)+offset+1]);		//sld of the layer
 				*(SLDmatrixREP + ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));
@@ -351,7 +352,7 @@ AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, in
 		
 		//workout the wavevector in the toplayer of the multilayer, if it exists.
 		if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >=0){
-			memset(subtotal,0,sizeof(subtotal));
+			memset(subtotal, 0, sizeof(subtotal));
 			subtotal[0][0]=MyComplex(1,0);subtotal[1][1]=MyComplex(1,0);
 			pj_mul[0] = (*(SLDmatrixREP)>qq) ? compsqrt(qq2-MyComplex(*SLDmatrixREP, 0)) : MyComplex(sqrt(qq-*SLDmatrixREP),0);
 		}
@@ -526,8 +527,8 @@ AbelesCalc_ImagAll(const double *coefP, double *yP, const double *xP,long npoint
 		goto done;
 	}
 
-	memset(pj, 0, sizeof(pj));
-	memset(SLDmatrix, 0, sizeof(SLDmatrix));
+	memset(pj, 0, (nlayers + 2) * sizeof(*pj));
+	memset(SLDmatrix, 0, (nlayers + 2) * sizeof(*SLDmatrix));
 
 	scale = coefP[1];
 	bkg = coefP[6];
@@ -554,8 +555,8 @@ AbelesCalc_ImagAll(const double *coefP, double *yP, const double *xP,long npoint
 			err = NOMEM;
 			goto done;
 		}
-		memset(pj_mul, 0, sizeof(pj_mul));
-		memset(SLDmatrixREP,0,sizeof(SLDmatrixREP));
+		memset(pj_mul, 0, Vmullayers * sizeof(*pj_mul));
+		memset(SLDmatrixREP, 0, Vmullayers * sizeof(*SLDmatrixREP));
 		for(ii=0; ii<Vmullayers;ii+=1)
 			*(SLDmatrixREP + ii) = 4 * PI * (MyComplex(coefP[(4 * ii) + offset + 1] * 1e-6, coefP[(4 * ii) + offset + 2])  - super);
 	}
@@ -563,7 +564,7 @@ AbelesCalc_ImagAll(const double *coefP, double *yP, const double *xP,long npoint
 
 	for (j = 0; j < npoints; j++) {
 		//intialise the matrices
-		memset(MRtotal,0,sizeof(MRtotal));
+		memset(MRtotal, 0, sizeof(MRtotal));
 		MRtotal[0][0]=oneC;MRtotal[1][1]=oneC;
 
 		qq2=MyComplex(xP[j]*xP[j]/4,0);
@@ -574,7 +575,7 @@ AbelesCalc_ImagAll(const double *coefP, double *yP, const double *xP,long npoint
 
 		//workout the wavevector in the toplayer of the multilayer, if it exists.
 		if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >=0){
-			memset(subtotal,0,sizeof(subtotal));
+			memset(subtotal, 0, sizeof(subtotal));
 			subtotal[0][0]=MyComplex(1,0);subtotal[1][1]=MyComplex(1,0);
 			pj_mul[0] = compsqrt(qq2-*SLDmatrixREP);
 		}
