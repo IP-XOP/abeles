@@ -356,6 +356,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	//values for the gaussian quadrature.
 	int isSmeared = 0;
 	int RESPOINTS = 17;
+	double M_PI = 3.141592653589793;
 	double INTLIMIT = 3.5;		//integration between -3.5 and 3.5 sigma
 	double FWHM = 2 * sqrt(2 * log(2.0));
 	double va, vb, sigma;

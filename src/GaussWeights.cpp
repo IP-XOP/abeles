@@ -5,9 +5,17 @@
 //  Created by Andrew Nelson on 30/01/13.
 //
 //
-
+#include "XOPStandardHeaders.h"			// Include ANSI headers, Mac headers, IgorXOP.h, XOP.h and XOPSupport.h
 #include "GaussWeights.h"
 #include "gauss_legendre.h"
+#ifdef MACIGOR
+#include <pthread.h>
+#endif
+#ifdef WINIGOR
+#include "pthread.h"
+#include "sched.h"
+#include "semaphore.h"
+#endif
 
 GaussWeight::GaussWeight(){};
 
