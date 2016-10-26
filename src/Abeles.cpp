@@ -10,21 +10,24 @@ calculates specular reflectivity as a function of Q momentum transfer.
 #include <exception>
 #include "RefCalculator.h"
 #include <Vector>
-#include "GaussWeights.h"
 
 //we can do the calculation multithreaded, it should be faster.
 #ifdef MACIGOR
-#include <pthread.h>
+    #include <pthread.h>
 #endif
 #ifdef WINIGOR
-#include "pthread.h"
-#include "sched.h"
-#include "semaphore.h"
+    #include "pthread.h"
+    #include "sched.h"
+    #include "semaphore.h"
 #endif
 
-GaussWeights *pinstance;
+/*
+ because we are going to do the calculation in a threaded fashion we need to know the number of CPU's.
+ This is stored in a global so we don't need to find it out every time we call the function.
+ */
+int NUM_CPUS = 1;
+GaussWeights *pinstance = NULL;
 pthread_mutex_t changeWeightsMutex = PTHREAD_MUTEX_INITIALIZER;
-
 
 #pragma pack(2)	// All structures passed to Igor are two-byte aligned.
 
@@ -53,13 +56,6 @@ typedef struct FitParamsAll {
 }FitParamsAll, *FitParamsAllPtr;
 
 #pragma pack()	// All structures passed to Igor are two-byte aligned.
-
-
-/*
- because we are going to do the calculation in a threaded fashion we need to know the number of CPU's.
- This is stored in a global so we don't need to find it out every time we call the function.
- */
-int NUM_CPUS = 1;
 
 
 
@@ -119,7 +115,7 @@ int Abeles_bmagAll(FitParamsAllPtr p){
 	
 	
 	//variables for the threadwise calculation of the reflectivity
-	extern int NUM_CPUS;
+//	int NUM_CPUS;
 	int threadsToCreate = 1;
 	pthread_t *threads = NULL;
 	refCalcParm *arg = NULL;
@@ -319,7 +315,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	long nlayers;
 	
 	//how many layers in multilayer (if you have one)
-	long Vmullayers=-1;
+	long Vmullayers =- 1;
 	//where in the normal model the multilayer gets appended to
 	long Vappendlayer=0;
 	//how many times the multilayer repeats
@@ -344,7 +340,6 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
     int retval = -1;
 	
 	//variables for the threadwise calculation of the reflectivity
-	extern int NUM_CPUS;
 	int threadsToCreate = 1;
 	double isItWorthThreading = 0;
 	pthread_t *threads = NULL;
@@ -356,11 +351,10 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	//values for the gaussian quadrature.
 	int isSmeared = 0;
 	int RESPOINTS = 17;
-	double M_PI = 3.141592653589793;
-	double INTLIMIT = 3.5;		//integration between -3.5 and 3.5 sigma
-	double FWHM = 2 * sqrt(2 * log(2.0));
+    const double m_pi = 3.14159265358979323846;
+	const double INTLIMIT = 3.5;		//integration between -3.5 and 3.5 sigma
+	const double FWHM = 2 * sqrt(2 * log(2.0));
 	double va, vb, sigma;
-    extern GaussWeights *pinstance;
     std::vector<double> weights;
     std::vector<double> abscissa;
 	
@@ -404,8 +398,8 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	}
 	
 	coefP = (double*) WaveData(p->CoefHandle);	
-	//the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
-	//if not, the coefficient wave is wrong.
+	// the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
+	// if not, the coefficient wave is wrong.
 	nlayers = (long)coefP[0];
 	
 	switch (mode) {
@@ -470,7 +464,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 		}
         
         for(ii = 0 ; ii < RESPOINTS ; ii++)
-            weights[ii] = exp(-0.5 * pow(INTLIMIT * abscissa[ii], 2)) * weights[ii] / sqrt(2 * M_PI);
+            weights[ii] = exp(-0.5 * pow(INTLIMIT * abscissa[ii], 2)) * weights[ii] / sqrt(2 * m_pi);
 
 		calcY = smearedY;
 		calcX = smearedX;
@@ -719,7 +713,7 @@ parrattReflectance(FitParamsAllPtr p){
 	double *yP = NULL;
 	
 	//variables for the threadwise calculation of the reflectivity
-	extern int NUM_CPUS;
+//	int NUM_CPUS;
 	int threadsToCreate = 1;
 	double isItWorthThreading = 0;
 	pthread_t *threads = NULL;
@@ -841,7 +835,7 @@ parrattReflectance(FitParamsAllPtr p){
 		pointsConsumed += pointsEachThread;
 	}
 	
-	//do the remaining points in the main thread.
+	// do the remaining points in the main thread.
 	if(err = realReflectance(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining))
 		goto done;
 	
@@ -849,7 +843,7 @@ parrattReflectance(FitParamsAllPtr p){
 	for (ii = 0; ii < threadsToCreate - 1 ; ii++)
 		pthread_join(threads[ii], NULL);
 	
-	//put the reflectivity data back into the y wave supplied.
+	// put the reflectivity data back into the y wave supplied.
 	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle, yP))
 		goto done;
 	
@@ -857,7 +851,7 @@ parrattReflectance(FitParamsAllPtr p){
 	p->result = 0;		// not actually used by FuncFit
 	
 done:
-	//now have to free the thread memory and argument memory
+	// now have to free the thread memory and argument memory
 	if(threads)
 		free(threads);
 	if(arg)
@@ -911,7 +905,6 @@ extern "C" void
 XOPEntry(void)
 {	
 	XOPIORecResult result = 0;
-    extern GaussWeights *pinstance;
     
 	switch (GetXOPMessage()) {
 		case FUNCADDRS:
@@ -932,22 +925,19 @@ XOPEntry(void)
  main() does any necessary initialization and then sets the XOPEntry field of the
  ioRecHandle to the address to be called for future messages.
  */
-HOST_IMPORT int main(IORecHandle ioRecHandle){
+HOST_IMPORT int XOPMain(IORecHandle ioRecHandle){
 	XOPInit(ioRecHandle);							// Do standard XOP initialization.
 	SetXOPEntry(XOPEntry);							// Set entry point for future calls.
-	
-	extern int NUM_CPUS;
-    extern GaussWeights *pinstance;
     
     pinstance = new GaussWeights();
     if(!pinstance)
         return NOMEM;
 
-	//find out the number of CPU's.
+	// find out the number of CPU's.
 #ifdef WINIGOR
-    SYSTEM_INFO sysInfo;  
+     SYSTEM_INFO sysInfo;
      GetSystemInfo(&sysInfo);  
-    NUM_CPUS = sysInfo.dwNumberOfProcessors;  
+     NUM_CPUS = sysInfo.dwNumberOfProcessors;
 #endif
 	
 #ifdef MACIGOR
@@ -960,7 +950,7 @@ HOST_IMPORT int main(IORecHandle ioRecHandle){
 	sysctl(mib, 2, &NUM_CPUS, &len, NULL, 0);
 #endif
 	
-	if (igorVersion < 600){
+	if (igorVersion < 700){
 		SetXOPResult(IGOR_OBSOLETE);
 		return EXIT_FAILURE;
 	}else{

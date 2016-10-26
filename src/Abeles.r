@@ -7,14 +7,14 @@ resource 'vers' (1) {						/* XOP version info */
 };
 
 resource 'vers' (2) {						/* Igor version info */
-	0x04, 0x00, release, 0x00, 0,			/* version bytes and country integer */
-	"4.00",
-	"(for Igor Pro 4.00 or later)"
+	0x07, 0x00, release, 0x00, 0,			/* version bytes and country integer */
+	"7.00",
+	"(for Igor Pro 7.00 or later)"
 };
 
 resource 'STR#' (1100) {					/* custom error messages */
 	{
-	"Abeles requires Igor Pro 6.0 or later.",
+	"Abeles requires Igor Pro 7.0 or later.",
 	"Wave does not exist",
 	"Coefficient wave must be single or double precision floating point",
 	"The coefficient wave has the wrong number of parameters. Wavelength = 4*w[0]+6+4*mullayers",

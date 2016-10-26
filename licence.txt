@@ -5,3 +5,58 @@ Copyright (C) 2006 Andrew Nelson and Australian Nuclear Science and Technology O
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.   Whilst is has been tested, it is the users responsibility to check for potential inaccuracies in the function calculation.  If you use this plugin to analyse data that is then published then we request that you cite the original Motofit paper.
 
 Nelson, A. (2006). "Co-refinement of multiple contrast neutron / X-ray reflectivity data using MOTOFIT." Journal of Applied Crystallography 39: 273-276.
+
+===============================================================================
+*
+	Numerical Integration by Gauss-Legendre Quadrature Formulas of high orders.
+	High-precision abscissas and weights are used.
+
+	Project homepage: http://www.holoborodko.com/pavel/?page_id=679
+	Contact e-mail:   pavel@holoborodko.com
+
+	Copyright (c)2007-2010 Pavel Holoborodko
+	All rights reserved.
+
+	Redistribution and use in source and binary forms, with or without
+	modification, are permitted provided that the following conditions
+	are met:
+
+	1. Redistributions of source code must retain the above copyright
+	notice, this list of conditions and the following disclaimer.
+
+	2. Redistributions in binary form must reproduce the above copyright
+	notice, this list of conditions and the following disclaimer in the
+	documentation and/or other materials provided with the distribution.
+
+	3. Redistributions of any form whatsoever must retain the following
+	acknowledgment:
+	"
+         This product includes software developed by Pavel Holoborodko
+         Web: http://www.holoborodko.com/pavel/
+         e-mail: pavel@holoborodko.com
+
+	"
+
+	4. This software cannot be, by any means, used for any commercial
+	purpose without the prior permission of the copyright holder.
+
+	Any of the above conditions can be waived if you get permission from
+	the copyright holder.
+
+	THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+	ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+	IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+	ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+	FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+	DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+	OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+	HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+	LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+	OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+	SUCH DAMAGE.
+
+	Contributors
+	Konstantin Holoborodko - Optimization of Legendre polynomial computing.
+
+*/
+===============================================================================

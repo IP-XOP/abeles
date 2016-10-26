@@ -76,10 +76,10 @@ int ParrattCalcAll(const double *coefP, double *yP, const double *xP,long npoint
 	bkg = fabs(coefP[4]);
 	subrough = coefP[5];
 	
-	//offset tells us where the multilayers start.
+	// offset tells us where the multilayers start.
 	offset = 4 * nlayers + 6;
 	
-	//fillout all the SLD's for all the layers
+	// fillout all the SLD's for all the layers
 	for(ii = 1 ; ii < nlayers+1 ; ii += 1){
 		numtemp = 1.e-6 * ((100. - coefP[4*ii+4])/100.) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1.e-6)/100.;		//sld of the layer
 		*(SLDmatrix+ii) = 4 * PI * (numtemp);
@@ -88,11 +88,11 @@ int ParrattCalcAll(const double *coefP, double *yP, const double *xP,long npoint
 	*(SLDmatrix+nlayers+1) = 4 * PI * ((coefP[3] * 1e-6));
 	
 	for (j = 0; j < npoints ; j+=1) {
-		//intialise the matrices
+		// intialise the matrices
 		
 		qq = xP[j]*xP[j]/4;
 
-		//start from subphase
+		// start from subphase
 		kzj_1 = (*(SLDmatrix+nlayers+1) > qq) ? MyComplex(0, sqrt(fabs(qq - *(SLDmatrix+nlayers+1)))) : MyComplex(sqrt(qq - *(SLDmatrix+nlayers+1)), 0);		
 		RRJ_1.re = 0;
 		RRJ_1.im = 0;
@@ -307,10 +307,10 @@ AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, in
 	bkg = fabs(coefP[4]);
 	subrough = coefP[5];
 
-	//offset tells us where the multilayers start.
+	// offset tells us where the multilayers start.
 	offset = 4 * nlayers + 6;
 
-	//fillout all the SLD's for all the layers
+	// fillout all the SLD's for all the layers
 	for(ii = 1 ; ii < nlayers + 1 ; ii += 1){
 		numtemp = 1.e-6 * ((100. - coefP[4*ii+4])/100.) * coefP[4*ii+3]+ (coefP[4*ii+4]*coefP[3]*1.e-6)/100.;		//sld of the layer
 		*(SLDmatrix + ii) = 4 * PI * (numtemp  - (coefP[2] * 1e-6));
@@ -319,7 +319,7 @@ AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, in
 	*(SLDmatrix + nlayers + 1) = 4 * PI * ((coefP[3] * 1e-6) - (coefP[2] * 1e-6));
 	
 	if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >= 0){
-		//set up an array for wavevectors
+		// set up an array for wavevectors
 			try{
 				SLDmatrixREP = new double [Vmullayers];
 				pj_mul = new MyComplex [Vmullayers];
@@ -336,7 +336,7 @@ AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, in
 	}
 	
 	for (j = 0; j < npoints ; j+=1) {
-		//intialise the matrices
+		// intialise the matrices
 		memset(MRtotal, 0, sizeof(MRtotal));
 		MRtotal[0][0].re = 1.;
 		MRtotal[0][0].im = 0.;
@@ -347,22 +347,23 @@ AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, in
 		qq = xP[j] * xP[j] / 4;
 		qq2.re = qq;
 		qq2.im = 0;
-		for(ii = 0; ii < nlayers+2 ; ii++)			//work out the wavevector in each of the layers
+		for(ii = 0; ii < nlayers+2 ; ii++)
+            // work out the wavevector in each of the layers
 			pj[ii] = (*(SLDmatrix + ii) > qq) ? MyComplex(0, sqrt(fabs(qq - *(SLDmatrix + ii)))) : MyComplex(sqrt(qq - *(SLDmatrix + ii)), 0);
 		
-		//workout the wavevector in the toplayer of the multilayer, if it exists.
+		// workout the wavevector in the toplayer of the multilayer, if it exists.
 		if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >=0){
 			memset(subtotal, 0, sizeof(subtotal));
 			subtotal[0][0]=MyComplex(1,0);subtotal[1][1]=MyComplex(1,0);
 			pj_mul[0] = (*(SLDmatrixREP)>qq) ? compsqrt(qq2-MyComplex(*SLDmatrixREP, 0)) : MyComplex(sqrt(qq-*SLDmatrixREP),0);
 		}
 		
-		//now calculate reflectivities
+		// now calculate reflectivities
 		for(ii = 0 ; ii < nlayers+1 ; ii++){
-			//work out the fresnel coefficients
-			//this looks more complicated than it really is.
-			//the reason it looks so convoluted is because if there is no complex part of the wavevector,
-			//then it is faster to do the calc with real arithmetic then put it into a complex number.
+			// work out the fresnel coefficients
+			// this looks more complicated than it really is.
+			// the reason it looks so convoluted is because if there is no complex part of the wavevector,
+			// then it is faster to do the calc with real arithmetic then put it into a complex number.
 			if(Vmullayers > 0 && ii == Vmulappend && Vmulrep > 0 )
 				rj = fres(pj[ii], pj_mul[0], coefP[offset+3]);
 			else {

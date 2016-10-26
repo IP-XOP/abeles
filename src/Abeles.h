@@ -6,15 +6,20 @@
  *
  */
 #include "MyComplex.h"
+#include "GaussWeights.h"
 
 using namespace MyComplexNumber;
 // Prototypes
 #ifdef MACIGOR
-using namespace std;
+//using namespace std;
 #include <sys/sysctl.h>
 #endif	
 
-HOST_IMPORT int main(IORecHandle ioRecHandle);
+extern GaussWeights *pinstance;
+extern pthread_mutex_t changeWeightsMutex;
+extern int NUM_CPUS;
+
+HOST_IMPORT int XOPMain(IORecHandle ioRecHandle);
 // Custom error codes
 #define REQUIRES_IGOR_600 1 + FIRST_XOP_ERR
 #define NON_EXISTENT_WAVE 2 + FIRST_XOP_ERR
