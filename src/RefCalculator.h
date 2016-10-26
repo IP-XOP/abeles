@@ -35,4 +35,4 @@ typedef struct{
 	const double *xP;	
 }  refCalcParm;
 
-#define PI 3.141592653589793
+#define PI 3.14159265358979323846
