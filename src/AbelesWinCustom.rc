@@ -8,7 +8,7 @@
 
 1100 STR#							// Custom error messages.
 BEGIN
-	"Abeles requires Igor Pro 4.0 or later.\0",
+	"Abeles requires Igor Pro 7.0 or later.\0",
 	"Wave does not exist\0",
 	"Coefficient wave must be single or double precision floating point\0",
 	"The coefficient wave has the wrong number of parameters. Wavelength = 4*w[0]+6+4*mullayers\0",

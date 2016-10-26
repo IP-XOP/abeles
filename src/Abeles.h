@@ -5,6 +5,16 @@
  Copyright Andrew Nelson and ANSTO 2009
  *
  */
+ //we can do the calculation multithreaded, it should be faster.
+#ifdef MACIGOR
+#include <pthread.h>
+#endif
+#ifdef WINIGOR
+#include "pthread.h"
+#include "sched.h"
+#include "semaphore.h"
+#endif
+
 #include "MyComplex.h"
 #include "GaussWeights.h"
 

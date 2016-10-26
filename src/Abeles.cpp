@@ -11,16 +11,6 @@ calculates specular reflectivity as a function of Q momentum transfer.
 #include "RefCalculator.h"
 #include <Vector>
 
-//we can do the calculation multithreaded, it should be faster.
-#ifdef MACIGOR
-    #include <pthread.h>
-#endif
-#ifdef WINIGOR
-    #include "pthread.h"
-    #include "sched.h"
-    #include "semaphore.h"
-#endif
-
 /*
  because we are going to do the calculation in a threaded fashion we need to know the number of CPU's.
  This is stored in a global so we don't need to find it out every time we call the function.
@@ -119,9 +109,9 @@ int Abeles_bmagAll(FitParamsAllPtr p){
 	int threadsToCreate = 1;
 	pthread_t *threads = NULL;
 	refCalcParm *arg = NULL;
-	long pointsEachThread = 0;
-	long pointsRemaining = 0;
-	long pointsConsumed = 0;
+	CountInt pointsEachThread = 0;
+	CountInt pointsRemaining = 0;
+	CountInt pointsConsumed = 0;
 	
 	//stuff starts here
 	if (p->CoefHandle == NIL ||	p->YWaveHandle == NIL || p->XWaveHandle == NIL ){
@@ -216,7 +206,7 @@ int Abeles_bmagAll(FitParamsAllPtr p){
 	}
 	
 	//need to calculated how many points are given to each thread.
-	pointsEachThread = floorl(npoints / (threadsToCreate / 2L));
+	pointsEachThread = (long) floorl((long) npoints / (threadsToCreate / 2L));
 	pointsRemaining = npoints;
 	pointsConsumed = 0;
 	threadUsed = 0;
@@ -456,7 +446,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
         pinstance->getGaussWeight(RESPOINTS, abscissa, weights);
         
 		for(ii = 0 ; ii < smearedPoints ; ii += 1){
-            int idx = ii / RESPOINTS;
+            CountInt idx = ii / RESPOINTS;
             sigma = dxP[idx] / FWHM;
             va = -INTLIMIT * sigma + xP[idx];
             vb = INTLIMIT * sigma + xP[idx];
@@ -510,12 +500,12 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	}
 	
 	//need to calculated how many points are given to each thread.
-	pointsEachThread = (CountInt) floorl(smearedPoints / threadsToCreate);
+	pointsEachThread = (CountInt) floorl((long) smearedPoints / threadsToCreate);
 	pointsRemaining = smearedPoints;
 	
 	for (ii = 0; ii < threadsToCreate - 1; ii++){
 		arg[ii].coefP = (double*) WaveData(p->CoefHandle);
-		arg[ii].npoints = pointsEachThread;
+		arg[ii].npoints = (long) pointsEachThread;
 		
 		arg[ii].Vmullayers = Vmullayers;
 		arg[ii].Vappendlayer = Vappendlayer;
@@ -532,7 +522,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	}
 	
 	//do the remaining points in the main thread.
-	if(err = calcAllFunc((double*) WaveData(p->CoefHandle), calcY+pointsConsumed, calcX+pointsConsumed, pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
+	if(err = calcAllFunc((double*) WaveData(p->CoefHandle), calcY+pointsConsumed, calcX+pointsConsumed, (long) pointsRemaining, Vmullayers, Vappendlayer, Vmulrep))
 		goto done;
 	
 	for (ii = 0; ii < threadsToCreate - 1 ; ii++)
@@ -718,9 +708,9 @@ parrattReflectance(FitParamsAllPtr p){
 	double isItWorthThreading = 0;
 	pthread_t *threads = NULL;
 	refCalcParm *arg = NULL;
-	long pointsEachThread = 0;
-	long pointsRemaining = 0;
-	long pointsConsumed = 0;
+	CountInt pointsEachThread = 0;
+	CountInt pointsRemaining = 0;
+	CountInt pointsConsumed = 0;
 	
 	//have to check that all the supplied wave references exist
 	if (p->CoefHandle == NULL ||
@@ -819,7 +809,7 @@ parrattReflectance(FitParamsAllPtr p){
 	//if you have two CPU's, only create one extra thread because the main thread does half the work
 	for (ii = 0; ii < threadsToCreate - 1; ii++){
 		arg[ii].coefP = coefP;
-		arg[ii].npoints = pointsEachThread;
+		arg[ii].npoints = (long) pointsEachThread;
 		
 		arg[ii].Vmullayers = Vmullayers;
 		arg[ii].Vappendlayer = Vappendlayer;
@@ -836,7 +826,7 @@ parrattReflectance(FitParamsAllPtr p){
 	}
 	
 	// do the remaining points in the main thread.
-	if(err = realReflectance(coefP, yP+pointsConsumed, xP+pointsConsumed, pointsRemaining))
+	if(err = realReflectance(coefP, yP+pointsConsumed, xP+pointsConsumed, (long)pointsRemaining))
 		goto done;
 	
 	
