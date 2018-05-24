@@ -9,7 +9,7 @@ calculates specular reflectivity as a function of Q momentum transfer.
 #include <math.h>
 #include <exception>
 #include "RefCalculator.h"
-#include <Vector>
+#include <vector>
 
 /*
  because we are going to do the calculation in a threaded fashion we need to know the number of CPU's.
@@ -49,7 +49,7 @@ typedef struct FitParamsAll {
 
 
 
-void getMultiLayerParams(long *Vmullayers, long *Vappendlayer, long *Vmulrep){
+void getMultiLayerParams(int *Vmullayers, int *Vappendlayer, int *Vmulrep){
 	//temporary places for calculation
 	double realVal, imagVal;
 	
@@ -57,17 +57,17 @@ void getMultiLayerParams(long *Vmullayers, long *Vappendlayer, long *Vmulrep){
 	if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1)
 		*Vmullayers = 0;
 	else
-		*Vmullayers=(long)realVal;
+		*Vmullayers=(int)realVal;
 	
 	if(FetchNumVar("Vappendlayer", &realVal, &imagVal) == -1)
 		*Vappendlayer = 0;
 	else
-		*Vappendlayer=(long)realVal;
+		*Vappendlayer=(int)realVal;
 	
 	if(FetchNumVar("Vmulrep", &realVal, &imagVal) == -1)
 		*Vmulrep=0;
 	else
-		*Vmulrep=(long)realVal;
+		*Vmulrep=(int)realVal;
 	
 }
 
@@ -82,11 +82,11 @@ int Abeles_bmagAll(FitParamsAllPtr p){
 	long nlayers;
 	
 	//how many layers in multilayer (if you have one)
-	long Vmullayers=-1;
+	int Vmullayers=-1;
 	//where in the normal model the multilayer gets appended to
-	long Vappendlayer=0;
+	int Vappendlayer=0;
 	//how many times the multilayer repeats
-	long Vmulrep=0;
+	int Vmulrep=0;
 	
 	//a variable for iterating for loops
 	long ii;
@@ -305,11 +305,11 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	long nlayers;
 	
 	//how many layers in multilayer (if you have one)
-	long Vmullayers =- 1;
+	int Vmullayers =- 1;
 	//where in the normal model the multilayer gets appended to
-	long Vappendlayer=0;
+	int Vappendlayer=0;
 	//how many times the multilayer repeats
-	long Vmulrep=0;
+	int Vmulrep=0;
 	
 	//a variable for iterating for loops
 	CountInt ii;
@@ -685,14 +685,14 @@ parrattReflectance(FitParamsAllPtr p){
 	long nlayers;
 	
 	//how many layers in multilayer (if you have one)
-	long Vmullayers=-1;
+	int Vmullayers=-1;
 	//where in the normal model the multilayer gets appended to
-	long Vappendlayer=0;
+	int Vappendlayer=0;
 	//how many times the multilayer repeats
-	long Vmulrep=0;
+	int Vmulrep=0;
 	
 	//the return code of the function
-	long err=0;
+	int err=0;
 	//a variable for iterating for loops
 	long ii;
 	
@@ -761,7 +761,7 @@ parrattReflectance(FitParamsAllPtr p){
 		if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1)
 			Vmullayers=0;
 		else
-			Vmullayers=(long)realVal;
+			Vmullayers=(int)realVal;
 		
 		if(ncoefs != (4 * nlayers + 6) + 4 * Vmullayers){
 			err = INCORRECT_INPUT;
@@ -771,12 +771,12 @@ parrattReflectance(FitParamsAllPtr p){
 		if(FetchNumVar("Vappendlayer", &realVal, &imagVal) == -1)
 			Vappendlayer = 0;
 		else
-			Vappendlayer=(long)realVal;
+			Vappendlayer=(int)realVal;
 		
 		if(FetchNumVar("Vmulrep", &realVal, &imagVal) == -1)
 			Vmulrep=0;
 		else
-			Vmulrep=(long)realVal;
+			Vmulrep=(int)realVal;
 	};
 	
 	//this relationship was worked out for a dualcore machine.

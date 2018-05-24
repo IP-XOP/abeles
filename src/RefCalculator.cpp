@@ -26,7 +26,6 @@ void *AbelesThreadWorker(void *arg){
 	int err = NULL;
 	refCalcParm *p = (refCalcParm *) arg;
 	err = AbelesCalcAll(p->coefP, p->yP, p->xP, p->npoints, p->Vmullayers, p->Vappendlayer, p->Vmulrep);
-//	err = ParrattCalcAll(p->coefP, p->yP, p->xP, p->npoints);
 	
 	pthread_exit((void*)err);
 	return NULL;
