@@ -351,12 +351,7 @@ int AbelesAllWrapper(FitParamsAllPtr p, int mode){
 	//the functions that will do the calculation
 	void* (*threadWorkerFunc)(void*);
 	int (*calcAllFunc)(const double *, double *, const double *,long, int, int, int);
-	
-	//this is now threadsafe, check IGOR is >6.20
-	if (igorVersion < 620)
-		if (!RunningInMainThread())
-			return NOT_IN_THREADSAFE;
-		
+			
 	//stuff starts here
 	if (p->CoefHandle == NIL ||	p->YWaveHandle == NIL || p->XWaveHandle == NIL ){
 		SetNaN64(&p->result);
@@ -592,11 +587,6 @@ Abeles(FitParamsPtr p){
 	double *Abelesparams = NULL;
 	double x;
 	int Vmullayers = 0;
-
-	//this is now threadsafe, check IGOR is >6.20
-	if (igorVersion < 620)
-		if (!RunningInMainThread())
-			return NOT_IN_THREADSAFE;
 	
 	if (p->waveHandle == NULL){
 		SetNaN64(&p->result);
@@ -636,11 +626,6 @@ Abeles_imag(FitParamsPtr p){
 	double *Abelesparams = NULL;
 	double x,result;
 	int Vmullayers = 0;
-	
-	//this is now threadsafe, check IGOR is >6.20
-	if (igorVersion < 620)
-		if (!RunningInMainThread())
-			return NOT_IN_THREADSAFE;
 	
 	if (p->waveHandle == NULL){
 		SetNaN64(&p->result);
