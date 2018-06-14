@@ -234,7 +234,7 @@ int Abeles_bmagAll(FitParamsAllPtr p){
 	}
 
 	//need to calculated how many points are given to each thread.
-   pointsEachThread = floorl(npoints / (threadsToCreate / 2L));
+   pointsEachThread = (CountInt) floorl((double) npoints / ((double)threadsToCreate / 2.));
    pointsRemaining = npoints;
    pointsConsumed = 0;
    
@@ -788,7 +788,7 @@ parrattReflectance(FitParamsAllPtr p){
 		goto done;
 	}
 	//need to calculated how many points are given to each thread.
-	pointsEachThread = floorl(npoints / threadsToCreate);
+	pointsEachThread = (CountInt) floorl((double) npoints / (double) threadsToCreate);
 	pointsRemaining = npoints;
 	
 	//if you have two CPU's, only create one extra thread because the main thread does half the work

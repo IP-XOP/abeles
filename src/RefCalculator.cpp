@@ -27,7 +27,7 @@ void *AbelesThreadWorker(void *arg){
 	refCalcParm *p = (refCalcParm *) arg;
 	err = AbelesCalcAll(p->coefP, p->yP, p->xP, p->npoints, p->Vmullayers, p->Vappendlayer, p->Vmulrep);
 	
-	pthread_exit((void*)err);
+	pthread_exit((void*) &err);
 	return NULL;
 }
 
@@ -36,7 +36,7 @@ void *AbelesImagThreadWorker(void *arg){
 	refCalcParm *p = (refCalcParm *) arg;
 	err = AbelesCalc_ImagAll(p->coefP, p->yP, p->xP, p->npoints, p->Vmullayers, p->Vappendlayer, p->Vmulrep);
 	
-	pthread_exit((void*)err);
+	pthread_exit((void*) &err);
 	return NULL;
 }
 
@@ -45,7 +45,7 @@ void *realReflectanceThreadWorker(void *arg){
 	refCalcParm *p = (refCalcParm *) arg;
 	err = realReflectance(p->coefP, p->yP, p->xP, p->npoints);
 	
-	pthread_exit((void*)err);
+	pthread_exit((void*) &err);
 	return NULL;
 }
 
