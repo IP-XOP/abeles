@@ -15,10 +15,10 @@
 #include "semaphore.h"
 #endif
 
-#include "MyComplex.h"
+#include <complex>
 #include "GaussWeights.h"
 
-using namespace MyComplexNumber;
+using namespace std;
 // Prototypes
 #ifdef MACIGOR
 //using namespace std;
@@ -31,7 +31,7 @@ extern int NUM_CPUS;
 
 HOST_IMPORT int XOPMain(IORecHandle ioRecHandle);
 // Custom error codes
-#define REQUIRES_IGOR_600 1 + FIRST_XOP_ERR
+#define REQUIRES_IGOR_700 1 + FIRST_XOP_ERR
 #define NON_EXISTENT_WAVE 2 + FIRST_XOP_ERR
 #define REQUIRES_SP_OR_DP_WAVE 3 + FIRST_XOP_ERR
 #define INCORRECT_INPUT 4 + FIRST_XOP_ERR
@@ -40,5 +40,5 @@ HOST_IMPORT int XOPMain(IORecHandle ioRecHandle);
 
  int Abelescalc(const double*,double, double*);
  int Abelescalc_imag(const double*,double,double*);
- void matmul(MyComplex,MyComplex,MyComplex);
- MyComplex fres(MyComplex,MyComplex,double);
+ void matmul(complex<double>[2][2], complex<double>[2][2], complex<double>[2][2] );
+ complex<double> fres(complex<double>, complex<double>, double);

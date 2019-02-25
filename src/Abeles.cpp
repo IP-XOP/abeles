@@ -11,6 +11,14 @@ calculates specular reflectivity as a function of Q momentum transfer.
 #include "RefCalculator.h"
 #include <vector>
 
+
+void matmul(complex<double> a[2][2], complex<double> b[2][2], complex<double> c[2][2]){
+    c[0][0] = a[0][0]*b[0][0] + a[0][1]*b[1][0];
+    c[0][1] = a[0][0]*b[0][1] + a[0][1]*b[1][1];
+    c[1][0] = a[1][0]*b[0][0] + a[1][1]*b[1][0];
+    c[1][1] = a[1][0]*b[0][1] + a[1][1]*b[1][1];
+}
+
 /*
  because we are going to do the calculation in a threaded fashion we need to know the number of CPU's.
  This is stored in a global so we don't need to find it out every time we call the function.
@@ -71,228 +79,10 @@ void getMultiLayerParams(int *Vmullayers, int *Vappendlayer, int *Vmulrep){
 	
 }
 
-extern "C"
-int Abeles_bmagAll(FitParamsAllPtr p){
-	int err = 0;
-	
-	//number of coefficients, number of Q points
-	CountInt ncoefs,npoints;
-	
-	//how many layers you have
-	long nlayers;
-	
-	//how many layers in multilayer (if you have one)
-	int Vmullayers=-1;
-	//where in the normal model the multilayer gets appended to
-	int Vappendlayer=0;
-	//how many times the multilayer repeats
-	int Vmulrep=0;
-	
-	//a variable for iterating for loops
-	long ii;
-	long threadUsed;
-	
-	//we will extract values from the supplied waves and store them as double arrays
-	//these pointers refer to the values extracted.
-	double *coefP = NULL;
-	double *xP = NULL;
-	double *yP = NULL;
-
-	double *tempYPplusplus = NULL;
-	double *tempYPminusminus = NULL;
-	double *coefPplusplus = NULL;
-	double *coefPminusminus = NULL;
-	
-	
-	//variables for the threadwise calculation of the reflectivity
-//	int NUM_CPUS;
-	int threadsToCreate = 1;
-	pthread_t *threads = NULL;
-	refCalcParm *arg = NULL;
-	CountInt pointsEachThread = 0;
-	CountInt pointsRemaining = 0;
-	CountInt pointsConsumed = 0;
-	
-	//stuff starts here
-	if (p->CoefHandle == NIL ||	p->YWaveHandle == NIL || p->XWaveHandle == NIL ){
-		SetNaN64(&p->result);
-		err = NON_EXISTENT_WAVE;
-		goto done;
-	}
-	if (WaveType(p->CoefHandle) != NT_FP64 ||
-		WaveType(p->YWaveHandle) != (NT_FP64 | NT_CMPLX) ||
-		WaveType(p->XWaveHandle) != NT_FP64){
-		SetNaN64(&p->result);
-		err = REQUIRES_DP_WAVE;
-		goto done;
-	}
-	
-	ncoefs = WavePoints(p->CoefHandle);
-	npoints = WavePoints(p->YWaveHandle);
-	if (npoints != WavePoints(p->XWaveHandle)){
-		SetNaN64(&p->result);
-		err = WAVES_NOT_SAME_LENGTH;
-		goto done;
-	}
-	
-	coefP = (double*) WaveData(p->CoefHandle);
-	yP = (double*) WaveData(p->YWaveHandle);
-	xP = (double*) WaveData(p->XWaveHandle);
-		
-	//the number of layers should relate to the size of the coefficient wave (4*N+8 + 4*Vmullayers)
-	//if not, the coefficient wave is wrong.
-	nlayers = (long)coefP[0];
-	
-	if(ncoefs != 4 * nlayers + 8){
-		//this may meanthere is a multilayer model specified
-		getMultiLayerParams(&Vmullayers, &Vappendlayer, &Vmulrep);
-				
-		if(ncoefs != (4 * nlayers + 8) + 4 * Vmullayers){
-			err = INCORRECT_INPUT;
-			goto done;
-		}				
-	};
-	
-	try{
-		coefPplusplus = new double[ncoefs - 2];
-		coefPminusminus = new double[ncoefs -2];
-		tempYPplusplus = new double[npoints];
-		tempYPminusminus = new double[npoints];
-	} catch (...){
-		err = NOMEM;
-		goto done;
-	}
-	
-	coefPplusplus[0] = nlayers;
-	coefPplusplus[1] = coefP[1];
-	coefPplusplus[2] = coefP[2] + coefP[3];
-	coefPplusplus[3] = coefP[4] + coefP[5];
-	coefPplusplus[4] = coefP[6];
-	coefPplusplus[5] = coefP[7];
-	
-	coefPminusminus[0] = nlayers;
-	coefPminusminus[1] = coefP[1];
-	coefPminusminus[2] = coefP[2] - coefP[3];
-	coefPminusminus[3] = coefP[4] - coefP[5];
-	coefPminusminus[4] = coefP[6];
-	coefPminusminus[5] = coefP[7];
-	
-	for(ii = 0 ; ii < nlayers ; ii += 1){
-		coefPplusplus[4 * ii + 6] = coefP[4 * ii + 8];
-		coefPplusplus[4 * ii + 7] = coefP[4 * ii + 9] + coefP[4 * ii + 10];
-		coefPplusplus[4 * ii + 8] = 0;
-		coefPplusplus[4 * ii + 9] = coefP[4 * ii + 11];
-
-		coefPminusminus[4 * ii + 6] = coefP[4 * ii + 8];
-		coefPminusminus[4 * ii + 7] = coefP[4 * ii + 9] - coefP[4 * ii + 10];
-		coefPminusminus[4 * ii + 8] = 0;
-		coefPminusminus[4 * ii + 9] = coefP[4 * ii + 11];
-	}
-	
-	threadsToCreate = NUM_CPUS;
-	
-	//create threads for the calculation
-	threads = (pthread_t *) malloc((threadsToCreate) * sizeof(pthread_t));
-	if(!threads){
-		err = NOMEM;
-		goto done;
-	}
-	
-	//create arguments to be supplied to each of the threads
-	arg = (refCalcParm *) malloc (sizeof(refCalcParm) * (threadsToCreate));
-	if(!arg){
-		err = NOMEM;
-		goto done;
-	}
-	
-	//need to calculated how many points are given to each thread.
-	pointsEachThread = (long) floorl((long) npoints / (threadsToCreate / 2L));
-	pointsRemaining = npoints;
-	pointsConsumed = 0;
-	threadUsed = 0;
-	
-	for (ii = 0; ii < (long)(threadsToCreate / 2L); ii++){
-		if(ii == (long)(threadsToCreate / 2L) - 1)
-		   pointsEachThread = pointsRemaining;
-		   
-		arg[threadUsed].coefP = coefPplusplus;
-		arg[threadUsed].npoints = (long) pointsEachThread;
-		
-		arg[threadUsed].Vmullayers = Vmullayers;
-		arg[threadUsed].Vappendlayer = Vappendlayer;
-		arg[threadUsed].Vmulrep = Vmulrep;
-		
-		//the following two lines specify where the Q values and R values will be sourced/written.
-		//i.e. an offset of the original array.
-		arg[threadUsed].xP = xP + pointsConsumed;
-		arg[threadUsed].yP = tempYPplusplus + pointsConsumed;
-		
-		pthread_create(&threads[threadUsed], NULL, AbelesThreadWorker, (void *)(arg + threadUsed));
-		pointsRemaining -= pointsEachThread;
-		pointsConsumed += pointsEachThread;
-		threadUsed += 1;
-	}
-
-	//need to calculated how many points are given to each thread.
-   pointsEachThread = (CountInt) floorl((double) npoints / ((double)threadsToCreate / 2.));
-   pointsRemaining = npoints;
-   pointsConsumed = 0;
-   
-   for (ii = 0; ii < (long)(threadsToCreate / 2L); ii++){
-	   if(ii == (long)(threadsToCreate / 2L) - 1)
-		  pointsEachThread = pointsRemaining;
-		  
-		  arg[threadUsed].coefP = coefPminusminus;
-		  arg[threadUsed].npoints = (long) pointsEachThread;
-		  
-		  arg[threadUsed].Vmullayers = Vmullayers;
-		  arg[threadUsed].Vappendlayer = Vappendlayer;
-		  arg[threadUsed].Vmulrep = Vmulrep;
-		  
-		  //the following two lines specify where the Q values and R values will be sourced/written.
-		  //i.e. an offset of the original array.
-		  arg[threadUsed].xP = xP + pointsConsumed;
-		  arg[threadUsed].yP = tempYPminusminus + pointsConsumed;
-		  
-		  pthread_create(&threads[threadUsed], NULL, AbelesThreadWorker, (void *)(arg + threadUsed));
-		  pointsRemaining -= pointsEachThread;
-		  pointsConsumed += pointsEachThread;
-		  threadUsed += 1;
-	}
-				  
-	for (ii = 0; ii < threadsToCreate; ii++)
-		pthread_join(threads[ii], NULL);
-
-	for(ii = 0 ; ii < npoints ; ii += 1){
-		yP[2 * ii] = tempYPplusplus[ii]; 
-		yP[2 * ii + 1] = tempYPminusminus[ii]; 
-	}
-
-	WaveHandleModified(p->YWaveHandle);
-	p->result = 0;		// not actually used by FuncFit
-	
-done:
-	if(tempYPplusplus)
-		delete [] tempYPplusplus;
-	if(tempYPminusminus)
-		delete [] tempYPminusminus;
-	if(coefPminusminus)
-		delete [] coefPminusminus;
-	if(coefPplusplus)
-		delete [] coefPplusplus;
-	
-	if(threads)
-		free(threads);
-	if(arg)
-		free(arg);
-	
-	return err;			
-}
 
 /*mode:
 0 = AbelesAll
 1 = Abeles_imagAll
-2 = Abeles_BmagAll
  */
  
 int AbelesAllWrapper(FitParamsAllPtr p, int mode){
@@ -659,189 +449,6 @@ done:
 	return err;
 }
 
-extern "C" int
-parrattReflectance(FitParamsAllPtr p){
-	//number of coefficients, number of Q points
-	CountInt ncoefs = 0, npoints = 0;
-	//temporary places for calculation
-	double realVal,imagVal;
-	
-	//how many layers you have
-	long nlayers;
-	
-	//how many layers in multilayer (if you have one)
-	int Vmullayers=-1;
-	//where in the normal model the multilayer gets appended to
-	int Vappendlayer=0;
-	//how many times the multilayer repeats
-	int Vmulrep=0;
-	
-	//the return code of the function
-	int err=0;
-	//a variable for iterating for loops
-	long ii;
-	
-	//we will extract values from the supplied waves and store them as double arrays
-	//these pointers refer to the values extracted.
-	double *coefP = NULL;
-	double *xP = NULL;
-	double *yP = NULL;
-	
-	//variables for the threadwise calculation of the reflectivity
-//	int NUM_CPUS;
-	int threadsToCreate = 1;
-	double isItWorthThreading = 0;
-	pthread_t *threads = NULL;
-	refCalcParm *arg = NULL;
-	CountInt pointsEachThread = 0;
-	CountInt pointsRemaining = 0;
-	CountInt pointsConsumed = 0;
-	
-	//have to check that all the supplied wave references exist
-	if (p->CoefHandle == NULL ||
-		p->YWaveHandle == NULL ||
-		p->XWaveHandle == NULL ){
-		SetNaN64(&p->result);
-		err = NON_EXISTENT_WAVE;
-		goto done;
-	}
-	//check that all the supplied waves have the correct numerical type.
-	if (!(WaveType(p->CoefHandle) != NT_FP64 ||
-		   WaveType(p->YWaveHandle) != NT_FP64 ||
-		    WaveType(p->XWaveHandle) != NT_FP64)){
-		SetNaN64(&p->result);
-		err = REQUIRES_DP_WAVE;
-		goto done;
-	}
-	
-	ncoefs= WavePoints(p->CoefHandle);
-	npoints = WavePoints(p->YWaveHandle);
-	if (npoints != WavePoints(p->XWaveHandle)){
-		SetNaN64(&p->result);
-		err = WAVES_NOT_SAME_LENGTH;
-		goto done;
-	}
-	
-	try{
-		coefP =  new double[ncoefs];
-		xP =  new double[npoints];
-		yP = new double[npoints];
-	} catch (...){
-		err = NOMEM;
-		goto done;
-	}
-	
-	if(err = MDGetDPDataFromNumericWave(p->CoefHandle, coefP))
-		goto done;
-	if(err = MDGetDPDataFromNumericWave(p->YWaveHandle, yP))
-		goto done;
-	if(err = MDGetDPDataFromNumericWave(p->XWaveHandle, xP))
-		goto done;
-	
-	//the number of layers should relate to the size of the coefficient wave (4*N+6 + 4*Vmullayers)
-	//if not, the coefficient wave is wrong.
-	nlayers = (long)coefP[0];
-	if(ncoefs != 4 * nlayers + 6){
-		//this may meanthere is a multilayer model specified
-		if(FetchNumVar("Vmullayers", &realVal, &imagVal) == -1)
-			Vmullayers=0;
-		else
-			Vmullayers=(int)realVal;
-		
-		if(ncoefs != (4 * nlayers + 6) + 4 * Vmullayers){
-			err = INCORRECT_INPUT;
-			goto done;
-		}
-		
-		if(FetchNumVar("Vappendlayer", &realVal, &imagVal) == -1)
-			Vappendlayer = 0;
-		else
-			Vappendlayer=(int)realVal;
-		
-		if(FetchNumVar("Vmulrep", &realVal, &imagVal) == -1)
-			Vmulrep=0;
-		else
-			Vmulrep=(int)realVal;
-	};
-	
-	//this relationship was worked out for a dualcore machine.
-	//I worked out how long it took for a certain number of points and a certain number of layers
-	//then I calculated the cross over for when it was worth threading, rather than not.
-	//i.e. for a given number of layers, how many points were required for multithreading to be worthwhile.
-	//I plotted the number of points (y) vs the number of layers (x), giving the following relationship.
-	isItWorthThreading = 3.382 + 641. *pow(coefP[0], -0.73547);
-	if((double) npoints < isItWorthThreading)
-		threadsToCreate = 1;
-	else
-		threadsToCreate = NUM_CPUS;
-	
-	//create threads for the calculation
-	threads = (pthread_t *) malloc((threadsToCreate - 1) * sizeof(pthread_t));
-	if(!threads && NUM_CPUS > 1){
-		err = NOMEM;
-		goto done;
-	}
-	//create arguments to be supplied to each of the threads
-	arg = (refCalcParm *) malloc (sizeof(refCalcParm)*(threadsToCreate - 1));
-	if(!arg && NUM_CPUS > 1){
-		err = NOMEM;
-		goto done;
-	}
-	//need to calculated how many points are given to each thread.
-	pointsEachThread = (CountInt) floorl((double) npoints / (double) threadsToCreate);
-	pointsRemaining = npoints;
-	
-	//if you have two CPU's, only create one extra thread because the main thread does half the work
-	for (ii = 0; ii < threadsToCreate - 1; ii++){
-		arg[ii].coefP = coefP;
-		arg[ii].npoints = (long) pointsEachThread;
-		
-		arg[ii].Vmullayers = Vmullayers;
-		arg[ii].Vappendlayer = Vappendlayer;
-		arg[ii].Vmulrep = Vmulrep;
-		
-		//the following two lines specify where the Q values and R values will be sourced/written.
-		//i.e. an offset of the original array.
-		arg[ii].xP = xP+pointsConsumed;
-		arg[ii].yP = yP+pointsConsumed;
-		
-		pthread_create(&threads[ii], NULL, realReflectanceThreadWorker, (void *)(arg+ii));
-		pointsRemaining -= pointsEachThread;
-		pointsConsumed += pointsEachThread;
-	}
-	
-	// do the remaining points in the main thread.
-	if(err = realReflectance(coefP, yP+pointsConsumed, xP+pointsConsumed, (long)pointsRemaining))
-		goto done;
-	
-	
-	for (ii = 0; ii < threadsToCreate - 1 ; ii++)
-		pthread_join(threads[ii], NULL);
-	
-	// put the reflectivity data back into the y wave supplied.
-	if(err = MDStoreDPDataInNumericWave(p->YWaveHandle, yP))
-		goto done;
-	
-	WaveHandleModified(p->YWaveHandle);
-	p->result = 0;		// not actually used by FuncFit
-	
-done:
-	// now have to free the thread memory and argument memory
-	if(threads)
-		free(threads);
-	if(arg)
-		free(arg);
-	
-	if(xP != NULL)
-		delete [] xP;
-	if(yP != NULL)
-		delete [] yP;
-	if(coefP != NULL)
-		delete [] coefP;
-	
-	return err;	
-}
-
 
 static XOPIORecResult
 RegisterFunction()
@@ -862,11 +469,6 @@ RegisterFunction()
 		case 3:
 			return((XOPIORecResult)Abeles_imagAll);
 			break;
-		case 4:
-			return((XOPIORecResult)parrattReflectance);
-			break;
-		case 5:
-			return((XOPIORecResult)Abeles_bmagAll);
 	}
 	return 0;
 }
@@ -935,8 +537,8 @@ HOST_IMPORT int XOPMain(IORecHandle ioRecHandle){
 }
 
 
-MyComplex fres(MyComplex a, MyComplex b, double rough){
-	return (compexp(-2 * rough * rough * a * b)) * (a - b)/(a + b);
+complex<double> fres(complex<double> a, complex<double> b, double rough){
+    return (std::exp(-2. * rough * rough * a * b)) * (a - b) / (a + b);
 }
 
 int
@@ -949,25 +551,24 @@ Abelescalc(const double *coefP, double x, double *result){
 	
 	double scale,bkg,subrough;
 	double num=0,den=0, answer=0,qq;
-	double anum,anum2;
-	MyComplex temp,SLD,beta,rj;
+	complex<double> temp,SLD,beta,rj;
 	double numtemp=0;
 	int offset=0;
-	MyComplex  MRtotal[2][2];
-	MyComplex subtotal[2][2];
-	MyComplex MI[2][2];
-	MyComplex temp2[2][2];
-	MyComplex qq2;
-	MyComplex oneC = MyComplex(1,0);
-	MyComplex *pj_mul = NULL;
-	MyComplex *pj = NULL;
+	complex<double>  MRtotal[2][2];
+	complex<double> subtotal[2][2];
+	complex<double> MI[2][2];
+	complex<double> temp2[2][2];
+	complex<double> qq2;
+	complex<double> oneC = complex<double>(1, 0);
+	complex<double> *pj_mul = NULL;
+	complex<double> *pj = NULL;
 	double *SLDmatrix = NULL;
 	double *SLDmatrixREP = NULL;
 	
 	int nlayers = (int)coefP[0];
 	
 	try{
-		pj = new MyComplex [nlayers+2];
+		pj = new complex<double> [nlayers+2];
 		SLDmatrix = new double [nlayers+2];
 	} catch(...){
 		err = NOMEM;
@@ -978,7 +579,7 @@ Abelescalc(const double *coefP, double x, double *result){
 	memset(SLDmatrix, 0, (nlayers + 2) * sizeof(*SLDmatrix));
 	
 	scale = coefP[1];
-	bkg = fabs(coefP[4]);
+	bkg = (coefP[4]);
 	subrough = coefP[5];
 	
 	//offset tells us where the multilayers start.
@@ -1003,7 +604,7 @@ Abelescalc(const double *coefP, double x, double *result){
 			//set up an array for wavevectors
 			try{
 				SLDmatrixREP = new double [Vmullayers];
-				pj_mul = new MyComplex [Vmullayers];
+				pj_mul = new complex<double> [Vmullayers];
 			} catch(...){
 				err = NOMEM;
 				goto done;
@@ -1021,19 +622,17 @@ Abelescalc(const double *coefP, double x, double *result){
 	MRtotal[0][0] = oneC ; MRtotal[1][1] = oneC;
 	
 	qq = x*x/4;
-	qq2=MyComplex(qq, 0);
+	qq2 = complex<double>(qq, 0);
 	
-	for(ii=0; ii<nlayers+2 ; ii++){			//work out the wavevector in each of the layers
-		pj[ii] = (*(SLDmatrix+ii)>qq) ? compsqrt(qq2-MyComplex(*(SLDmatrix+ii),0)): MyComplex(sqrt(qq-*(SLDmatrix+ii)),0);
-		//pj[ii] = (*(SLDmatrix+ii)>qq) ? oneC.compsqrt(qq2-MyComplex(*(SLDmatrix+ii),0)): MyComplex(sqrt(qq-*(SLDmatrix+ii)),0);
-	}
+	for(ii=0; ii<nlayers+2 ; ii++)		//work out the wavevector in each of the layers
+        pj[ii] = std::sqrt(qq2 - *(SLDmatrix + ii));
 	
-	//workout the wavevector in the toplayer of the multilayer, if it exists.
+	// workout the wavevector in the toplayer of the multilayer, if it exists.
 	if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >=0){
 		memset(subtotal,0,sizeof(subtotal));
-		subtotal[0][0]=MyComplex(1,0);subtotal[1][1]=MyComplex(1,0);
-		pj_mul[0] = (*(SLDmatrixREP)>qq) ? compsqrt(qq2-MyComplex(*SLDmatrixREP,0)): MyComplex(sqrt(qq-*SLDmatrixREP),0);
-		//	pj_mul[0] = (*(SLDmatrixREP)>qq) ? oneC.compsqrt(qq2-MyComplex(*SLDmatrixREP,0)): MyComplex(sqrt(qq-*SLDmatrixREP),0);
+		subtotal[0][0] = oneC;
+        subtotal[1][1] = oneC;
+        pj_mul[0] = std::sqrt(qq2 - *SLDmatrixREP);
 	}
 	
 	//now calculate reflectivities
@@ -1043,43 +642,34 @@ Abelescalc(const double *coefP, double x, double *result){
 		//the reason it looks so convoluted is because if there is no complex part of the wavevector,
 		//then it is faster to do the calc with real arithmetic then put it into a complex number.
 		if(Vmullayers>0 && ii==Vmulappend && Vmulrep>0 ){
-			rj=fres(pj[ii],pj_mul[0],coefP[offset+3]);
+			rj = fres(pj[ii], pj_mul[0], coefP[offset+3]);
 		} else {
-			if((pj[ii]).im == 0 && (pj[ii+1]).im==0){
-				anum = (pj[ii]).re;
-				anum2 = (pj[ii+1]).re;
-				rj = (ii==nlayers) ?
-				MyComplex(((anum-anum2)/(anum+anum2))*exp(anum*anum2*-2*subrough*subrough),0)
-				:
-				MyComplex(((anum-anum2)/(anum+anum2))*exp(anum*anum2*-2*coefP[4*(ii+1)+5]*coefP[4*(ii+1)+5]),0);
-			} else {
-				rj = (ii == nlayers) ?
-				((pj[ii]-pj[ii+1])/(pj[ii]+pj[ii+1]))*compexp(pj[ii]*pj[ii+1]*MyComplex(-2*subrough*subrough,0))
-				:
-				((pj[ii]-pj[ii+1])/(pj[ii]+pj[ii+1]))*compexp(pj[ii]*pj[ii+1]*MyComplex(-2*coefP[4*(ii+1)+5]*coefP[4*(ii+1)+5],0));	
-			};
+            rj = (ii == nlayers) ?
+            fres(pj[ii], pj[ii+1], subrough)
+            :
+            fres(pj[ii], pj[ii+1], coefP[4*(ii+1)+5]);
 		}
 		
 		//work out the beta for the (non-multi)layer
-		beta = (ii==0)? oneC : compexp(pj[ii] * MyComplex(0,fabs(coefP[4*ii+2])));
+        beta = (ii==0)? oneC : std::exp(pj[ii] * complex<double>(0, fabs(coefP[4*ii+2])));
 		
 		//this is the characteristic matrix of a layer
-		MI[0][0]=beta;
-		MI[0][1]=rj*beta;
-		MI[1][1]=oneC/beta;
-		MI[1][0]=rj*MI[1][1];
+		MI[0][0] = beta;
+		MI[0][1] = rj*beta;
+		MI[1][1] = oneC / beta;
+		MI[1][0]=rj * MI[1][1];
 		
 		temp2[0][0] = MRtotal[0][0];
 		temp2[0][1] = MRtotal[0][1];
 		temp2[1][0] = MRtotal[1][0];
 		temp2[1][1] = MRtotal[1][1];
 		//multiply MR,MI to get the updated total matrix.			
-		matmul(temp2,MI,MRtotal);
+		matmul(temp2, MI, MRtotal);
 		
 		if(Vmullayers > 0 && ii == Vmulappend && Vmulrep > 0){
 			//workout the wavevectors in each of the layers
 			for(jj=1 ; jj < Vmullayers; jj++){
-				pj_mul[jj] = (*(SLDmatrixREP+jj)>qq) ? compsqrt(qq2-MyComplex(*(SLDmatrixREP+jj),0)): MyComplex(sqrt(qq-*(SLDmatrixREP+jj)),0);
+                pj_mul[jj] = std::sqrt(qq2 - *(SLDmatrixREP + jj));
 			}
 			
 			//work out the fresnel coefficients
@@ -1087,18 +677,18 @@ Abelescalc(const double *coefP, double x, double *result){
 				
 				rj = (jj == Vmullayers-1) ?
 				//if you're in the last layer then the roughness is the roughness of the top
-				((pj_mul[jj]-pj_mul[0])/(pj_mul[jj]+pj_mul[0]))*compexp((pj_mul[jj]*pj_mul[0])*MyComplex(-2*coefP[offset+3]*coefP[offset+3],0))
+                fres(pj_mul[jj], pj_mul[0], coefP[offset+3])
 				:
 				//otherwise it's the roughness of the layer below
-				((pj_mul[jj]-pj_mul[jj+1])/(pj_mul[jj]+pj_mul[jj+1]))*compexp((pj_mul[jj]*pj_mul[jj+1])*MyComplex(-2*coefP[4*(jj+1)+offset+3]*coefP[4*(jj+1)+offset+3],0));
+                fres(pj_mul[jj], pj_mul[jj+1], coefP[4*(jj+1)+offset+3]);
+
+				// Beta's
+                beta = std::exp(complex<double>(0, fabs(coefP[4*jj+offset])) * pj_mul[jj]);
 				
-				//Beta's
-				beta = compexp(MyComplex(0,fabs(coefP[4*jj+offset]))*pj_mul[jj]);
-				
-				MI[0][0]=beta;
-				MI[0][1]=rj*beta;
-				MI[1][1]=oneC/beta;
-				MI[1][0]=rj*MI[1][1];
+				MI[0][0] = beta;
+				MI[0][1] = rj * beta;
+				MI[1][1] = oneC / beta;
+				MI[1][0] = rj * MI[1][1];
 				
 				temp2[0][0] = subtotal[0][0];
 				temp2[0][1] = subtotal[0][1];
@@ -1111,16 +701,16 @@ Abelescalc(const double *coefP, double x, double *result){
 			for(kk = 0; kk < Vmulrep; kk++){		//if you are in the last multilayer
 				if(kk==Vmulrep-1){					//if you are in the last layer of the multilayer
 					for(jj=0;jj<Vmullayers;jj++){
-						beta = compexp((MyComplex(0,fabs(coefP[4*jj+offset]))*pj_mul[jj]));
+                        beta = std::exp(complex<double>(0, fabs(coefP[4*jj+offset])) * pj_mul[jj]);
 						
 						if(jj==Vmullayers-1){
 							if(Vmulappend==nlayers){
-								rj = ((pj_mul[Vmullayers-1]-pj[nlayers+1])/(pj_mul[Vmullayers-1]+pj[nlayers+1]))*compexp((pj_mul[Vmullayers-1]*pj[nlayers+1])*MyComplex(-2*subrough*subrough,0));
+                                rj = ((pj_mul[Vmullayers-1]-pj[nlayers+1])/(pj_mul[Vmullayers-1]+pj[nlayers+1])) * std::exp(pj_mul[Vmullayers-1]*pj[nlayers+1] * -2. * subrough * subrough);
 							} else {
-								rj = ((pj_mul[Vmullayers-1]-pj[Vmulappend+1])/(pj_mul[Vmullayers-1]+pj[Vmulappend+1]))*compexp((pj_mul[Vmullayers-1]*pj[Vmulappend+1])*MyComplex(-2*coefP[4*(Vmulappend+1)+5]*coefP[4*(Vmulappend+1)+5],0));
+                                rj = ((pj_mul[Vmullayers-1]-pj[Vmulappend+1])/(pj_mul[Vmullayers-1]+pj[Vmulappend+1]))*std::exp(pj_mul[Vmullayers-1] * pj[Vmulappend+1] * -2. * coefP[4*(Vmulappend+1)+5] * coefP[4*(Vmulappend+1)+5]);
 							};
 						} else {
-							rj = ((pj_mul[jj]-pj_mul[jj+1])/(pj_mul[jj]+pj_mul[jj+1]))*compexp((pj_mul[jj]*pj_mul[jj+1])*MyComplex(-2*coefP[4*(jj+1)+offset+3]*coefP[4*(jj+1)+offset+3],0));
+                            rj = ((pj_mul[jj]-pj_mul[jj+1])/(pj_mul[jj]+pj_mul[jj+1])) * std::exp(pj_mul[jj] * pj_mul[jj+1] * -2. * coefP[4*(jj+1)+offset+3] * coefP[4*(jj+1)+offset+3]);
 						}
 						
 						MI[0][0]=beta;
@@ -1148,10 +738,10 @@ Abelescalc(const double *coefP, double x, double *result){
 		
 	}
 	
-	den=compnorm(MRtotal[0][0]);
-	num=compnorm(MRtotal[1][0]);
-	answer=(num)/(den);
-	answer=(answer*scale)+bkg;
+    num = std::norm(MRtotal[1][0]);
+    den = std::norm(MRtotal[0][0]);
+    answer = (num / den);
+    answer = (answer * scale) + bkg;
 	
 	*result = answer;
 	
@@ -1180,26 +770,26 @@ Abelescalc_imag(const double *coefP, double x, double *result){
 	double scale,bkg,subrough;
 	double num=0,den=0, answer=0;
 	
-	MyComplex super;
-	MyComplex sub;
-	MyComplex temp,SLD,beta,rj,arg;
-	MyComplex oneC = MyComplex(1,0);
+	complex<double> super;
+	complex<double> sub;
+	complex<double> temp,SLD,beta,rj,arg;
+	complex<double> oneC = complex<double>(1,0);
 	int offset=0;
-	MyComplex MRtotal[2][2];
-	MyComplex subtotal[2][2];
-	MyComplex MI[2][2];
-	MyComplex temp2[2][2];
-	MyComplex qq2;
-	MyComplex *pj_mul = NULL;
-	MyComplex *pj = NULL;
-	MyComplex *SLDmatrix = NULL;
-	MyComplex *SLDmatrixREP = NULL;
+	complex<double> MRtotal[2][2];
+	complex<double> subtotal[2][2];
+	complex<double> MI[2][2];
+	complex<double> temp2[2][2];
+	complex<double> qq2;
+	complex<double> *pj_mul = NULL;
+	complex<double> *pj = NULL;
+	complex<double> *SLDmatrix = NULL;
+	complex<double> *SLDmatrixREP = NULL;
 	
 	int nlayers = (int)coefP[0];
 	
 	try{
-		pj = new MyComplex[nlayers+2];
-		SLDmatrix = new MyComplex[nlayers+2];
+		pj = new complex<double>[nlayers+2];
+		SLDmatrix = new complex<double>[nlayers+2];
 	} catch(...){
 		err = NOMEM;
 		goto done;
@@ -1211,18 +801,18 @@ Abelescalc_imag(const double *coefP, double x, double *result){
 	scale = coefP[1];
 	bkg = coefP[6];
 	subrough = coefP[7];
-	sub= MyComplex(coefP[4]*1e-6,coefP[5]);
-	super = MyComplex(coefP[2]*1e-6,coefP[3]);
+	sub= complex<double>(coefP[4]*1e-6, coefP[5]);
+	super = complex<double>(coefP[2]*1e-6, 0);
 	
 	//offset tells us where the multilayers start.
 	offset = 4 * nlayers + 8;
 	
 	//fillout all the SLD's for all the layers
-	for(ii=1; ii<nlayers+1;ii+=1){
-		*(SLDmatrix+ii) = MyComplex(4 * PI , 0)*(MyComplex(coefP[4*ii+5]*1e-6,coefP[4*ii+6])-super);
-	}
-	*(SLDmatrix) = MyComplex(0,0);
-	*(SLDmatrix+nlayers+1) = MyComplex(4 * PI, 0) * (sub - super);
+	for(ii=1; ii<nlayers+1;ii+=1)
+		*(SLDmatrix+ii) = 4. * PI * (complex<double>(coefP[4*ii+5] * 1e-6, coefP[4*ii+6] + 1.e-100) - super);
+
+	*(SLDmatrix) = complex<double>(0, 0);
+	*(SLDmatrix+nlayers + 1) = 4. * PI * (sub - super);
 	
 	if(FetchNumVar("Vmullayers", &realVal, &imagVal)!=-1){ // Fetch value
 		Vmullayers=(int)realVal;
@@ -1234,8 +824,8 @@ Abelescalc_imag(const double *coefP, double x, double *result){
 		if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >= 0){
 			//set up an array for wavevectors
 			try{
-				SLDmatrixREP = new MyComplex[Vmullayers];
-				pj_mul = new MyComplex[Vmullayers];
+				SLDmatrixREP = new complex<double>[Vmullayers];
+				pj_mul = new complex<double>[Vmullayers];
 			} catch(...){
 				err = NOMEM;
 				goto done;
@@ -1243,107 +833,108 @@ Abelescalc_imag(const double *coefP, double x, double *result){
 			memset(pj_mul, 0, Vmullayers * sizeof(*pj_mul));
 			memset(SLDmatrixREP, 0, Vmullayers * sizeof(*SLDmatrixREP));
 			for(ii=0; ii<Vmullayers;ii+=1){
-				*(SLDmatrixREP+ii) = MyComplex(4 * PI, 0)*(MyComplex(coefP[(4*ii)+offset+1]*1e-6,coefP[(4*ii)+offset+2])  - super);
+				*(SLDmatrixREP+ii) = 4 * PI * (complex<double>(coefP[(4*ii)+offset+1] * 1e-6, coefP[(4*ii)+offset+2] + 1.e-100)  - super);
 			}
 		}
 	}
 	
 	//intialise the matrices
-	memset(MRtotal,0,sizeof(MRtotal));
-	MRtotal[0][0]=oneC;MRtotal[1][1]=oneC;
+	memset(MRtotal, 0, sizeof(MRtotal));
+	MRtotal[0][0] = oneC;
+    MRtotal[1][1] = oneC;
 	
-	qq2=MyComplex(x*x/4,0);
+	qq2 = complex<double>(x * x / 4, 0);
 	
 	for(ii=0; ii<nlayers+2 ; ii++){			//work out the wavevector in each of the layers
-		pj[ii] = compsqrt(qq2-*(SLDmatrix+ii));
+        pj[ii] = std::sqrt(qq2 - *(SLDmatrix+ii));
 	}
 	
 	//workout the wavevector in the toplayer of the multilayer, if it exists.
 	if(Vmullayers > 0 && Vmulrep > 0 && Vmulappend >=0){
 		memset(subtotal,0,sizeof(subtotal));
-		subtotal[0][0]=MyComplex(1,0);subtotal[1][1]=MyComplex(1,0);
-		pj_mul[0] = compsqrt(qq2-*SLDmatrixREP);
+		subtotal[0][0] = oneC;
+        subtotal[1][1] = oneC;
+        pj_mul[0] = std::sqrt(qq2 - *SLDmatrixREP);
 	}
 	
 	//now calculate reflectivities
 	for(ii = 0 ; ii < nlayers+1 ; ii++){
 		//work out the fresnel coefficient
 		if(Vmullayers>0 && ii==Vmulappend && Vmulrep>0 ){
-			rj=fres(pj[ii],pj_mul[0],coefP[offset+3]);
+			rj=fres(pj[ii], pj_mul[0], coefP[offset+3]);
 		} else {
 			rj = (ii == nlayers) ?
-			((pj[ii]-pj[ii+1])/(pj[ii]+pj[ii+1]))*compexp(pj[ii]*pj[ii+1]*MyComplex(-2*subrough*subrough,0))
+			fres(pj[ii], pj[ii+1], subrough)
 			:
-			((pj[ii]-pj[ii+1])/(pj[ii]+pj[ii+1]))*compexp(pj[ii]*pj[ii+1]*MyComplex(-2*coefP[4*(ii+1)+7]*coefP[4*(ii+1)+7],0));
-		}
+            fres(pj[ii], pj[ii+1], coefP[4*(ii+1) + 7]);
+        }
 		
 		//work out the beta for the (non-multi)layer
-		beta = (ii==0)? oneC : compexp(pj[ii] * MyComplex(0,fabs(coefP[4*ii+4])));
+        beta = (ii==0)? oneC : std::exp(pj[ii] * complex<double>(0, fabs(coefP[4*ii+4])));
 		
 		//this is the characteristic matrix of a layer
-		MI[0][0]=beta;
-		MI[0][1]=rj*beta;
-		MI[1][1]=oneC/beta;
-		MI[1][0]=rj*MI[1][1];
+		MI[0][0] = beta;
+		MI[0][1] = rj * beta;
+		MI[1][1] = oneC / beta;
+		MI[1][0] = rj * MI[1][1];
 		
 		temp2[0][0] = MRtotal[0][0];
 		temp2[0][1] = MRtotal[0][1];
 		temp2[1][0] = MRtotal[1][0];
 		temp2[1][1] = MRtotal[1][1];
 		//multiply MR,MI to get the updated total matrix.			
-		matmul(temp2,MI,MRtotal);
+		matmul(temp2, MI, MRtotal);
 		
 		if(Vmullayers > 0 && ii == Vmulappend && Vmulrep > 0){
 			//workout the wavevectors in each of the layers
 			for(jj=1 ; jj < Vmullayers; jj++){
-				pj_mul[jj] = compsqrt(qq2-*(SLDmatrixREP+jj));
+                pj_mul[jj] = std::sqrt(qq2 - *(SLDmatrixREP + jj));
 			}
 			
 			//work out the fresnel coefficients
 			for(jj = 0 ; jj < Vmullayers; jj++){
 				rj = (jj == Vmullayers-1) ?
 				//if you're in the last layer then the roughness is the roughness of the top
-				((pj_mul[jj]-pj_mul[0])/(pj_mul[jj]+pj_mul[0]))*compexp((pj_mul[jj]*pj_mul[0])*MyComplex(-2*coefP[offset+3]*coefP[offset+3],0))
+                fres(pj_mul[jj], pj_mul[0], coefP[offset+3])
 				:
-				//otherwise it's the roughness of the layer below
-				((pj_mul[jj]-pj_mul[jj+1])/(pj_mul[jj]+pj_mul[jj+1]))*compexp((pj_mul[jj]*pj_mul[jj+1])*MyComplex(-2*coefP[4*(jj+1)+offset+3]*coefP[4*(jj+1)+offset+3],0));
-				
-				
+                //otherwise it's the roughness of the layer below
+                fres(pj_mul[jj], pj_mul[jj+1], coefP[4*(jj+1)+offset+3]);
+
 				//Beta's
-				beta = compexp(MyComplex(0,fabs(coefP[4*jj+offset]))*pj_mul[jj]);
+                beta = std::exp(complex<double>(0, fabs(coefP[4*jj+offset])) * pj_mul[jj]);
 				
-				MI[0][0]=beta;
-				MI[0][1]=rj*beta;
-				MI[1][1]=oneC/MI[0][0];
-				MI[1][0]=rj*MI[1][1];
+				MI[0][0] = beta;
+				MI[0][1] = rj * beta;
+				MI[1][1] = oneC / MI[0][0];
+				MI[1][0] = rj * MI[1][1];
 				
 				temp2[0][0] = subtotal[0][0];
 				temp2[0][1] = subtotal[0][1];
 				temp2[1][0] = subtotal[1][0];
 				temp2[1][1] = subtotal[1][1];
 				
-				matmul(temp2,MI,subtotal);
+				matmul(temp2, MI, subtotal);
 			};
 			
 			for(kk = 0; kk < Vmulrep; kk++){		//if you are in the last multilayer
 				if(kk==Vmulrep-1){					//if you are in the last layer of the multilayer
 					for(jj=0;jj<Vmullayers;jj++){
-						beta = compexp((MyComplex(0,fabs(coefP[4*jj+offset]))*pj_mul[jj]));
+                        beta = std::exp(complex<double>(0, fabs(coefP[4*jj+offset])) * pj_mul[jj]);
 						
 						if(jj==Vmullayers-1){
 							if(Vmulappend==nlayers){
-								rj = ((pj_mul[Vmullayers-1]-pj[nlayers+1])/(pj_mul[Vmullayers-1]+pj[nlayers+1]))*compexp((pj_mul[Vmullayers-1]*pj[nlayers+1])*MyComplex(-2*subrough*subrough,0));
+                                rj = fres(pj_mul[Vmullayers-1], pj[nlayers+1], subrough);
 							} else {
-								rj = ((pj_mul[Vmullayers-1]-pj[Vmulappend+1])/(pj_mul[Vmullayers-1]+pj[Vmulappend+1]))*compexp((pj_mul[Vmullayers-1]*pj[Vmulappend+1])*MyComplex(-2*coefP[4*(Vmulappend+1)+7]*coefP[4*(Vmulappend+1)+7],0));
+                                rj = fres(pj_mul[Vmullayers-1], pj[Vmulappend+1], coefP[4*(Vmulappend+1)+7]);
 							};
 						} else {
-							rj = ((pj_mul[jj]-pj_mul[jj+1])/(pj_mul[jj]+pj_mul[jj+1]))*compexp((pj_mul[jj]*pj_mul[jj+1])*MyComplex(-2*coefP[4*(jj+1)+offset+3]*coefP[4*(jj+1)+offset+3],0));
+                            rj = fres(pj_mul[jj], pj_mul[jj+1], coefP[4*(jj+1)+offset+3]);
 						}
 						
-						MI[0][0]=beta;
-						MI[0][1]=rj*beta;
-						MI[1][1]=MyComplex(1,0)/MI[0][0];
-						MI[1][0]=rj*MI[1][1];
+						MI[0][0] = beta;
+						MI[0][1] = rj * beta;
+						MI[1][1] = oneC / MI[0][0];
+						MI[1][0] = rj*MI[1][1];
 						
 						temp2[0][0] = MRtotal[0][0];
 						temp2[0][1] = MRtotal[0][1];
@@ -1358,18 +949,17 @@ Abelescalc_imag(const double *coefP, double x, double *result){
 					temp2[1][0] = MRtotal[1][0];
 					temp2[1][1] = MRtotal[1][1];
 					
-					matmul(temp2,subtotal,MRtotal);
+					matmul(temp2, subtotal, MRtotal);
 				};
 			};
 		};
 		
 	}
 	
-	den=compnorm(MRtotal[0][0]);
-	
-	num=compnorm(MRtotal[1][0]);
-	answer=(num/den);//(num*num)/(den*den);
-	answer=(answer*scale)+fabs(bkg);
+    num = std::norm(MRtotal[1][0]);
+    den = std::norm(MRtotal[0][0]);
+    answer = (num / den);
+    answer = (answer * scale) + bkg;
 	
 	*result = answer;
 	
@@ -1385,4 +975,3 @@ done:
 	
 	return err;	
 }
-

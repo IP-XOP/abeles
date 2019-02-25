@@ -11,8 +11,6 @@
 //	using namespace std
 
 
-int ParrattCalcAll(const double *coefP, double *yP, const double *xP,long npoints);
-int realReflectance(const double *coefP, double *yP, const double *xP,long npoints);
 int AbelesCalcAll(const double *coefP, double *yP, const double *xP,long npoints, int Vmullayers, int Vmulappend, int Vmulrep);
 int AbelesCalc_ImagAll(const double *coefP, double *yP, const double *xP,long npoints, int Vmullayers, int Vmulappend, int Vmulrep);
 int smearedAbelescalcAll(const double *coefP, double *yP, const double *xP, const double *dxP, long npoints);
