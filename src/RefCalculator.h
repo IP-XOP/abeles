@@ -7,7 +7,6 @@
  */
 	void *AbelesThreadWorker(void *arg);
 	void *AbelesImagThreadWorker(void *arg);
-	void *realReflectanceThreadWorker(void *arg);
 //	using namespace std
 
 
