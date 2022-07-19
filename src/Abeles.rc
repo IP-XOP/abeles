@@ -52,7 +52,7 @@ BEGIN
             VALUE "LegalCopyright", "Copyright Andrew Nelson© 2006\0"
             VALUE "OriginalFilename", "Abeles.xop\0"
             VALUE "ProductName", "Igor Pro Abeles\0"
-            VALUE "ProductVersion", "4, 00, 0, 1\0"
+            VALUE "ProductVersion", "8, 0, 0, 1\0"
         END
     END
     BLOCK "VarFileInfo"

@@ -8,7 +8,7 @@
 
 1100 STR#							// Custom error messages.
 BEGIN
-	"Abeles requires Igor Pro 7.0 or later.\0",
+	"Abeles requires Igor Pro 8.0 or later.\0",
 	"Wave does not exist\0",
 	"Coefficient wave must be single or double precision floating point\0",
 	"The coefficient wave has the wrong number of parameters. Wavelength = 4*w[0]+6+4*mullayers\0",
@@ -32,8 +32,8 @@ END
 BEGIN
 	XOP_VERSION,					// Version number of host XOP system.
 	DEV_SYS_CODE,					// Code for development system used to make XOP.
-	0,								// Obsolete - set to zero.
-	0,								// Obsolete - set to zero.
+	XOP_FEATURE_FLAGS,				// Obsolete - set to zero.
+	XOPI_RESERVED,					// Obsolete - set to zero.
 	XOP_TOOLKIT_VERSION				// XOP Toolkit version.
 END
 

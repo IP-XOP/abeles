@@ -527,7 +527,7 @@ HOST_IMPORT int XOPMain(IORecHandle ioRecHandle){
 	sysctl(mib, 2, &NUM_CPUS, &len, NULL, 0);
 #endif
 	
-	if (igorVersion < 700){
+	if (igorVersion < 800){
 		SetXOPResult(IGOR_OBSOLETE);
 		return EXIT_FAILURE;
 	}else{
